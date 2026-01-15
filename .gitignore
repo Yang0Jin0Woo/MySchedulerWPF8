@@ -1,0 +1,10 @@
+﻿# Visual Studio
+.vs/
+bin/
+obj/
+*.user
+*.suo
+
+# SQLite DB (원하면 유지 가능하지만 보통 제외)
+myscheduler.db
+*.db
