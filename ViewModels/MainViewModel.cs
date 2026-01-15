@@ -25,7 +25,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // 목록 선택
     private ScheduleListItem? _selectedSchedule;
     public ScheduleListItem? SelectedSchedule
     {
@@ -34,7 +33,6 @@ public partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedSchedule, value))
             {
-                // read - detail
                 _ = LoadSelectedDetailAsync();
                 DeleteScheduleCommand.NotifyCanExecuteChanged();
                 EditScheduleCommand.NotifyCanExecuteChanged();
@@ -42,7 +40,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // 상세 - read 결과
     private ScheduleItem? _selectedScheduleDetail;
     public ScheduleItem? SelectedScheduleDetail
     {
@@ -57,33 +54,54 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // --- 레이스 방지 (동시성 방지) ---
-    // 늦게 끝난 요청이 화면을 덮는 엉뚱한 상세가 보이는 문제 개선
-    private int _listRequestVersion = 0;
-    private int _detailRequestVersion = 0;
-
+    // Read 로딩 상태
     private bool _isLoadingList;
     public bool IsLoadingList
     {
         get => _isLoadingList;
-        set => SetProperty(ref _isLoadingList, value);
+        private set => SetProperty(ref _isLoadingList, value);
     }
 
     private bool _isLoadingDetail;
     public bool IsLoadingDetail
     {
         get => _isLoadingDetail;
-        set => SetProperty(ref _isLoadingDetail, value);
+        private set => SetProperty(ref _isLoadingDetail, value);
     }
+
+    // Write 재진입 방지
+    // Add/Edit/Delete 실행 중이면 IsBusy=true로 두고
+    // 모든 Write를 CanExecute에서 막아 연타/중복 실행 방지
+    private bool _isBusy;
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (SetProperty(ref _isBusy, value))
+            {
+                // Busy 상태 바뀌면 버튼 활성/비활성 즉시 갱신
+                AddScheduleCommand.NotifyCanExecuteChanged();
+                EditScheduleCommand.NotifyCanExecuteChanged();
+                DeleteScheduleCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    // 레이스 컨디션 방지(마지막 요청만 반영)
+    private int _listRequestVersion = 0;
+    private int _detailRequestVersion = 0;
 
     public MainViewModel()
     {
         _ = LoadSchedulesAsync();
     }
 
-    private bool CanEditOrDelete() => SelectedScheduleDetail is not null;
+    private bool CanAdd() => !IsBusy;
 
-    // read - list 날짜별 목록 조회(+레이스 방지)
+    private bool CanEditOrDelete() => !IsBusy && SelectedScheduleDetail is not null;
+
+    // READ - List
     [RelayCommand]
     private async Task LoadSchedulesAsync()
     {
@@ -94,12 +112,13 @@ public partial class MainViewModel : ObservableObject
         {
             var items = await _scheduleService.GetListByDateAsync(SelectedDate);
 
-            // 마지막 요청이 아니면 UI 반영 x
+            // 레이스 방지: 마지막 요청만 반영
             if (myVersion != _listRequestVersion) return;
 
             Schedules.Clear();
             foreach (var it in items) Schedules.Add(it);
 
+            // 날짜 바뀌면 상세 초기화
             SelectedSchedule = null;
             SelectedScheduleDetail = null;
         }
@@ -110,7 +129,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // read - detail 선택한 일정의 상세 조회(+레이스 방지)
+    // READ - Detail
     [RelayCommand]
     private async Task LoadSelectedDetailAsync()
     {
@@ -127,7 +146,7 @@ public partial class MainViewModel : ObservableObject
 
             var detail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
 
-            // 빠르게 다른 항목 클릭 때, 늦게 끝난 이전 상세 조회가 덮어쓰기 방지
+            // 레이스 방지: 마지막 요청만 반영
             if (myVersion == _detailRequestVersion)
                 SelectedScheduleDetail = detail;
         }
@@ -136,60 +155,92 @@ public partial class MainViewModel : ObservableObject
             if (myVersion == _detailRequestVersion)
                 IsLoadingDetail = false;
         }
+
+        DeleteScheduleCommand.NotifyCanExecuteChanged();
+        EditScheduleCommand.NotifyCanExecuteChanged();
     }
 
-    // create 일정 추가
-    [RelayCommand]
+    // CREATE (재진입 방지 적용)
+    [RelayCommand(CanExecute = nameof(CanAdd))]
     private async Task AddScheduleAsync()
     {
-        var vm = new ScheduleEditViewModel(SelectedDate);
-        var win = new ScheduleEditWindow
+        // 연타/중복 실행 방지
+        IsBusy = true;
+
+        try
         {
-            Owner = Application.Current?.MainWindow,
-            DataContext = vm
-        };
+            var vm = new ScheduleEditViewModel(SelectedDate);
+            var win = new ScheduleEditWindow
+            {
+                Owner = Application.Current?.MainWindow,
+                DataContext = vm
+            };
 
-        var ok = win.ShowDialog();
-        if (ok != true || vm.Result is null) return;
+            var ok = win.ShowDialog();
+            if (ok != true || vm.Result is null) return;
 
-        await _scheduleService.AddAsync(vm.Result);
-        await LoadSchedulesAsync();
+            await _scheduleService.AddAsync(vm.Result);
+            await LoadSchedulesAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    // update 일정 수정
+    // UPDATE (재진입 방지 적용)
     [RelayCommand(CanExecute = nameof(CanEditOrDelete))]
     private async Task EditScheduleAsync()
     {
         if (SelectedScheduleDetail is null) return;
 
-        var vm = new ScheduleEditViewModel(SelectedDate, SelectedScheduleDetail);
-        var win = new ScheduleEditWindow
+        IsBusy = true;
+
+        try
         {
-            Owner = Application.Current?.MainWindow,
-            DataContext = vm
-        };
+            var vm = new ScheduleEditViewModel(SelectedDate, SelectedScheduleDetail);
+            var win = new ScheduleEditWindow
+            {
+                Owner = Application.Current?.MainWindow,
+                DataContext = vm
+            };
 
-        var ok = win.ShowDialog();
-        if (ok != true || vm.Result is null) return;
+            var ok = win.ShowDialog();
+            if (ok != true || vm.Result is null) return;
 
-        await _scheduleService.UpdateAsync(vm.Result);
-        await LoadSchedulesAsync();
+            await _scheduleService.UpdateAsync(vm.Result);
+            await LoadSchedulesAsync();
 
-        if (SelectedSchedule is not null)
-            SelectedScheduleDetail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
+            // 수정 후 상세 재조회
+            if (SelectedSchedule is not null)
+                SelectedScheduleDetail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
-    // delete 일정 삭제
+    // DELETE (재진입 방지 적용)
     [RelayCommand(CanExecute = nameof(CanEditOrDelete))]
     private async Task DeleteScheduleAsync()
     {
         if (SelectedScheduleDetail is null) return;
 
-        await _scheduleService.DeleteAsync(SelectedScheduleDetail.Id);
+        IsBusy = true;
 
-        SelectedSchedule = null;
-        SelectedScheduleDetail = null;
+        try
+        {
+            await _scheduleService.DeleteAsync(SelectedScheduleDetail.Id);
 
-        await LoadSchedulesAsync();
+            SelectedSchedule = null;
+            SelectedScheduleDetail = null;
+
+            await LoadSchedulesAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 }
