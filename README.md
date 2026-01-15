@@ -1,8 +1,16 @@
 ﻿# 일정 관리 앱(MyScheduler)
 
-![image.png](attachment:2cc8ce71-4666-445d-8620-cc8b1dba07be:image.png)
-![image.png](attachment:95dc8077-0669-408c-910f-3aec07ee5706:image.png)
-![image.png](attachment:15dfb9fd-974d-4f12-b6d3-4cabf58a10a8:image.png)
+## 📸 Screenshots
+
+### 메인 화면
+<img src="screenshots/image1.png" width="800"/>
+
+### 일정 추가 / 수정 화면
+<img src="screenshots/image2.png" width="800"/>
+
+### 일정 상세 조회
+<img src="screenshots/image3.png" width="800"/>
+
 
 ## 프로젝트 소개
 
