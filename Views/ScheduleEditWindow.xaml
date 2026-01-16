@@ -4,79 +4,127 @@
         Title="일정 입력" Width="520" Height="320"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
-	<Grid Margin="16">
-		<Grid.RowDefinitions>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="*"/>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
-		</Grid.RowDefinitions>
 
-		<Grid.ColumnDefinitions>
-			<ColumnDefinition Width="90"/>
-			<ColumnDefinition Width="*"/>
-		</Grid.ColumnDefinitions>
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="90"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-		<TextBlock Grid.Row="0" Grid.Column="0" Text="제목" VerticalAlignment="Center"/>
-		<TextBox Grid.Row="0" Grid.Column="1" Margin="8,0,0,8"
-                 Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="8"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-		<TextBlock Grid.Row="1" Grid.Column="0" Text="시작" VerticalAlignment="Center"/>
-		<StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,8">
-			<DatePicker SelectedDate="{Binding StartDate}"/>
-			<TextBlock Margin="8,0,8,0" VerticalAlignment="Center"
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="제목" VerticalAlignment="Center"/>
+        <TextBox Grid.Row="0" Grid.Column="1"
+                 Margin="8,0,0,0"
+                 Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                 VerticalAlignment="Center"
+                 VerticalContentAlignment="Center"/>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="시작" VerticalAlignment="Center"/>
+        <Grid Grid.Row="2" Grid.Column="1"
+              Margin="8,0,0,0"
+              VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <DatePicker Grid.Column="0"
+                        SelectedDate="{Binding StartDate}"
+                        VerticalAlignment="Center"/>
+
+            <TextBlock Grid.Column="1"
+                       Margin="8,0,8,0"
+                       VerticalAlignment="Center"
                        Text="{Binding StartAmPmText}"/>
-			<ComboBox Width="110"
+
+            <ComboBox Grid.Column="2"
+                      Width="110"
+                      VerticalAlignment="Center"
                       ItemsSource="{Binding TimeOptions}"
                       SelectedItem="{Binding StartTime}">
-				<ComboBox.ItemTemplate>
-					<DataTemplate>
-						<TextBlock Text="{Binding StringFormat={}{0:hh\\:mm}}"/>
-					</DataTemplate>
-				</ComboBox.ItemTemplate>
-			</ComboBox>
-		</StackPanel>
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding StringFormat={}{0:hh\\:mm}}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
 
-		<TextBlock Grid.Row="2" Grid.Column="0" Text="종료" VerticalAlignment="Center"/>
-		<StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,8">
-			<DatePicker SelectedDate="{Binding EndDate}"/>
-			<TextBlock Margin="8,0,8,0" VerticalAlignment="Center"
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="종료" VerticalAlignment="Center"/>
+        <Grid Grid.Row="4" Grid.Column="1"
+              Margin="8,0,0,0"
+              VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <DatePicker Grid.Column="0"
+                        SelectedDate="{Binding EndDate}"
+                        VerticalAlignment="Center"/>
+
+            <TextBlock Grid.Column="1"
+                       Margin="8,0,8,0"
+                       VerticalAlignment="Center"
                        Text="{Binding EndAmPmText}"/>
-			<ComboBox Width="110"
+
+            <ComboBox Grid.Column="2"
+                      Width="110"
+                      VerticalAlignment="Center"
                       ItemsSource="{Binding TimeOptions}"
                       SelectedItem="{Binding EndTime}">
-				<ComboBox.ItemTemplate>
-					<DataTemplate>
-						<TextBlock Text="{Binding StringFormat={}{0:hh\\:mm}}"/>
-					</DataTemplate>
-				</ComboBox.ItemTemplate>
-			</ComboBox>
-		</StackPanel>
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding StringFormat={}{0:hh\\:mm}}"/>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </Grid>
 
-		<TextBlock Grid.Row="3" Grid.Column="0" Text="장소" VerticalAlignment="Center"/>
-		<TextBox Grid.Row="3" Grid.Column="1" Margin="8,0,0,8"
-                 Text="{Binding Location, UpdateSourceTrigger=PropertyChanged}"/>
+        <TextBlock Grid.Row="6" Grid.Column="0" Text="장소" VerticalAlignment="Center"/>
+        <TextBox Grid.Row="6" Grid.Column="1"
+                 Margin="8,0,0,0"
+                 Text="{Binding Location, UpdateSourceTrigger=PropertyChanged}"
+                 VerticalAlignment="Center"
+                 VerticalContentAlignment="Center"/>
 
-		<TextBlock Grid.Row="4" Grid.Column="0" Text="메모" VerticalAlignment="Top"/>
-		<TextBox Grid.Row="4" Grid.Column="1" Margin="8,0,0,8"
+        <TextBlock Grid.Row="8" Grid.Column="0" Text="메모" VerticalAlignment="Top"/>
+        <TextBox Grid.Row="8" Grid.Column="1"
+                 Margin="8,0,0,0"
                  Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
                  AcceptsReturn="True"
                  TextWrapping="Wrap"
                  VerticalScrollBarVisibility="Auto"/>
 
-		<TextBlock Grid.Row="5" Grid.ColumnSpan="2" Margin="0,0,0,8"
+        <TextBlock Grid.Row="10" Grid.ColumnSpan="2"
                    Foreground="Crimson"
-                   Text="{Binding ErrorMessage}"/>
+                   Text="{Binding ErrorMessage}"
+                   VerticalAlignment="Center"/>
 
-		<StackPanel Grid.Row="6" Grid.ColumnSpan="2" Orientation="Horizontal"
-                    HorizontalAlignment="Right">
-			<Button Content="취소" Width="80" Margin="0,0,8,0" IsCancel="True"/>
-			<Button Content="저장" Width="80" IsDefault="True"
+        <StackPanel Grid.Row="11" Grid.ColumnSpan="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center">
+            <Button Content="취소" Width="80" Margin="0,0,8,0" IsCancel="True"/>
+            <Button Content="저장" Width="80" IsDefault="True"
                     Command="{Binding SaveCommand}"
                     Click="OnSaveClick"/>
-		</StackPanel>
-	</Grid>
+        </StackPanel>
+    </Grid>
 </Window>
