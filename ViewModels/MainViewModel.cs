@@ -2,15 +2,29 @@
 using CommunityToolkit.Mvvm.Input;
 using MyScheduler.Models;
 using MyScheduler.Services;
+using MyScheduler.Utils;
 using MyScheduler.Views;
+using System;
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace MyScheduler.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
     private readonly IScheduleService _scheduleService = new ScheduleService();
+
+    private readonly DispatcherTimer _clockTimer;
+
+    private string _currentTimeText = "";
+    public string CurrentTimeText
+    {
+        get => _currentTimeText;
+        private set => SetProperty(ref _currentTimeText, value);
+    }
 
     public ObservableCollection<ScheduleListItem> Schedules { get; } = new();
 
@@ -95,7 +109,28 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         _ = LoadSchedulesAsync();
+
+        UpdateClock();
+
+        _clockTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _clockTimer.Tick += (_, __) => UpdateClock();
+        _clockTimer.Start();
     }
+
+    private static readonly CultureInfo KoreanCulture = new("ko-KR");
+
+    private void UpdateClock()
+    {
+        var kstNow = TimeUtil.GetKoreaNow();
+        CurrentTimeText = kstNow.ToString("tt h:mm:ss", KoreanCulture); // (24시 기준)"HH:mm:ss" or "HH:mm"
+    }
+
+    // 종료 시 정리
+    public void StopClock() => _clockTimer.Stop();
+
 
     private bool CanAdd() => !IsBusy;
 

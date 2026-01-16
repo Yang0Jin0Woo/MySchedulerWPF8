@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using MyScheduler.ViewModels;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -11,14 +12,17 @@ using System.Windows.Shapes;
 
 namespace MyScheduler
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : Window
     {
         public MainWindow()
         {
             InitializeComponent();
+
+            Closing += (_, __) =>
+            {
+                if (DataContext is MainViewModel vm)
+                    vm.StopClock();
+            };
         }
     }
 }
