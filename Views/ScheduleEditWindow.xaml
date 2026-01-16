@@ -26,14 +26,18 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="제목" VerticalAlignment="Center"/>
+        <Grid Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock Text="제목" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+        </Grid>
         <TextBox Grid.Row="0" Grid.Column="1"
                  Margin="8,0,0,0"
                  Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
                  VerticalAlignment="Center"
                  VerticalContentAlignment="Center"/>
 
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="시작" VerticalAlignment="Center"/>
+        <Grid Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock Text="시작" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+        </Grid>
         <Grid Grid.Row="2" Grid.Column="1"
               Margin="8,0,0,0"
               VerticalAlignment="Center">
@@ -65,7 +69,9 @@
             </ComboBox>
         </Grid>
 
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="종료" VerticalAlignment="Center"/>
+        <Grid Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock Text="종료" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+        </Grid>
         <Grid Grid.Row="4" Grid.Column="1"
               Margin="8,0,0,0"
               VerticalAlignment="Center">
@@ -97,14 +103,18 @@
             </ComboBox>
         </Grid>
 
-        <TextBlock Grid.Row="6" Grid.Column="0" Text="장소" VerticalAlignment="Center"/>
+        <Grid Grid.Row="6" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock Text="장소" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+        </Grid>
         <TextBox Grid.Row="6" Grid.Column="1"
                  Margin="8,0,0,0"
                  Text="{Binding Location, UpdateSourceTrigger=PropertyChanged}"
                  VerticalAlignment="Center"
                  VerticalContentAlignment="Center"/>
 
-        <TextBlock Grid.Row="8" Grid.Column="0" Text="메모" VerticalAlignment="Top"/>
+        <Grid Grid.Row="8" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock Text="메모" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+        </Grid>
         <TextBox Grid.Row="8" Grid.Column="1"
                  Margin="8,0,0,0"
                  Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"
