@@ -20,9 +20,5 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ScheduleItem>()
             .Property(x => x.IsAllDay)
             .HasDefaultValue(false);
-
-        modelBuilder.Entity<ScheduleItem>()
-            .Property(x => x.RowVersion)
-            .IsRowVersion();
     }
 }

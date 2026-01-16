@@ -180,6 +180,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             var detail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
+            //MessageBox.Show(detail is null ? "detail == null" : $"detail OK: {detail.TimeRangeText}");
 
             // 레이스 방지: 마지막 요청만 반영
             if (myVersion == _detailRequestVersion)
