@@ -1,45 +1,79 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MyScheduler.Models;
-using System.Globalization;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace MyScheduler.ViewModels;
 
 public partial class ScheduleEditViewModel : ObservableObject
 {
-    // 입력 필드
+    // ===== 기본 입력 =====
     [ObservableProperty] private string title = "";
     [ObservableProperty] private DateTime startDate = DateTime.Today;
     [ObservableProperty] private DateTime endDate = DateTime.Today;
-    [ObservableProperty] private string startTimeText = "10:00";
-    [ObservableProperty] private string endTimeText = "11:00";
+
     [ObservableProperty] private string? location;
     [ObservableProperty] private string? notes;
 
     [ObservableProperty] private string? errorMessage;
 
-    // 다이얼로그 결과(저장 누르면 채워짐)
+    // 저장 결과 (OnSaveClick에서 Result != null && ErrorMessage == null이면 닫히는 구조)
     public ScheduleItem? Result { get; private set; }
+
+    // ===== 시간 선택(30분 단위) =====
+    // 00:00, 00:30, ... 23:30 (총 48개)
+    public IReadOnlyList<TimeSpan> TimeOptions { get; } =
+        Enumerable.Range(0, 48).Select(i => TimeSpan.FromMinutes(i * 30)).ToList();
+
+    // 선택값(선택 전에는 null -> 저장 불가)
+    [ObservableProperty] private TimeSpan? startTime;
+    [ObservableProperty] private TimeSpan? endTime;
+
+    // 오전/오후 자동 표시 (선택값 기반)
+    public string StartAmPmText =>
+        StartTime is null ? "" : (StartTime.Value.Hours < 12 ? "오전" : "오후");
+
+    public string EndAmPmText =>
+        EndTime is null ? "" : (EndTime.Value.Hours < 12 ? "오전" : "오후");
+
+    // StartTime/EndTime이 바뀌면 오전/오후 텍스트도 갱신되어야 함
+    partial void OnStartTimeChanged(TimeSpan? value)
+    {
+        OnPropertyChanged(nameof(StartAmPmText));
+    }
+
+    partial void OnEndTimeChanged(TimeSpan? value)
+    {
+        OnPropertyChanged(nameof(EndAmPmText));
+    }
 
     public ScheduleEditViewModel(DateTime baseDate, ScheduleItem? existing = null)
     {
         if (existing is null)
         {
+            // 추가 모드: 날짜는 기본 세팅, 시간은 미선택(null)로 둬서 "빈칸" 상태로 시작
             StartDate = baseDate.Date;
             EndDate = baseDate.Date;
-            StartTimeText = "10:00";
-            EndTimeText = "11:00";
+            StartTime = null;
+            EndTime = null;
         }
         else
         {
+            // 수정 모드: 기존 값 복원
             Title = existing.Title;
             StartDate = existing.StartAt.Date;
             EndDate = existing.EndAt.Date;
-            StartTimeText = existing.StartAt.ToString("HH:mm");
-            EndTimeText = existing.EndAt.ToString("HH:mm");
+
+            // 기존 시간이 30분 단위가 아닐 수도 있으므로 가장 가까운 30분으로 보정(표시용)
+            StartTime = SnapTo30Minutes(existing.StartAt.TimeOfDay);
+            EndTime = SnapTo30Minutes(existing.EndAt.TimeOfDay);
+
             Location = existing.Location;
             Notes = existing.Notes;
-            Result = existing; // 수정 모드에서 동일 객체를 업데이트해도 되고, 새로 만들어도 됨
+
+            Result = existing;
         }
     }
 
@@ -54,20 +88,21 @@ public partial class ScheduleEditViewModel : ObservableObject
             return;
         }
 
-        if (!TryParseTime(StartTimeText, out var startTime))
+        // 시간 미선택 저장 금지
+        if (StartTime is null)
         {
-            ErrorMessage = "시작 시간 형식이 올바르지 않습니다. (예: 09:30)";
+            ErrorMessage = "시작 시간을 선택해주세요.";
             return;
         }
 
-        if (!TryParseTime(EndTimeText, out var endTime))
+        if (EndTime is null)
         {
-            ErrorMessage = "종료 시간 형식이 올바르지 않습니다. (예: 11:00)";
+            ErrorMessage = "종료 시간을 선택해주세요.";
             return;
         }
 
-        var startAt = StartDate.Date + startTime;
-        var endAt = EndDate.Date + endTime;
+        var startAt = StartDate.Date + StartTime.Value;
+        var endAt = EndDate.Date + EndTime.Value;
 
         if (endAt <= startAt)
         {
@@ -75,27 +110,27 @@ public partial class ScheduleEditViewModel : ObservableObject
             return;
         }
 
-        // Result가 있으면 수정, 없으면 신규 생성
         if (Result is null)
-        {
             Result = new ScheduleItem();
-        }
 
         Result.Title = Title.Trim();
         Result.StartAt = startAt;
         Result.EndAt = endAt;
         Result.Location = string.IsNullOrWhiteSpace(Location) ? null : Location.Trim();
         Result.Notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes.Trim();
-        Result.Priority = 1; // 필요하면 UI로 뺄 수 있음
+        Result.Priority = 1;
     }
 
-    private static bool TryParseTime(string input, out TimeSpan time)
+    private static TimeSpan SnapTo30Minutes(TimeSpan time)
     {
-        // "HH:mm" 형태를 우선적으로 파싱
-        if (TimeSpan.TryParseExact(input.Trim(), @"hh\:mm", CultureInfo.InvariantCulture, out time))
-            return true;
+        // 30분 단위로 반올림(표시용)
+        // 예: 10:10 -> 10:00, 10:20 -> 10:30, 10:50 -> 11:00
+        var totalMinutes = (int)Math.Round(time.TotalMinutes / 30.0) * 30;
 
-        // 로컬 기본 파싱도 fallback
-        return TimeSpan.TryParse(input.Trim(), out time);
+        // 하루 범위로 정규화
+        totalMinutes %= (24 * 60);
+        if (totalMinutes < 0) totalMinutes += (24 * 60);
+
+        return TimeSpan.FromMinutes(totalMinutes);
     }
 }
