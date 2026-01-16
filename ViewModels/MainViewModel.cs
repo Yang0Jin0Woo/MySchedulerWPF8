@@ -244,7 +244,39 @@ public partial class MainViewModel : ObservableObject
             var ok = win.ShowDialog();
             if (ok != true || vm.Result is null) return;
 
-            await _scheduleService.UpdateAsync(vm.Result);
+            try
+            {
+                await _scheduleService.UpdateAsync(vm.Result);
+            }
+            catch (ConcurrencyConflictException cex)
+            {
+                MessageBox.Show(cex.Message, "동시성 충돌", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                // 최신 목록 갱신
+                await LoadSchedulesAsync();
+
+                // 삭제된 케이스면 선택 초기화
+                if (cex.IsDeleted)
+                {
+                    SelectedSchedule = null;
+                    SelectedScheduleDetail = null;
+                    return;
+                }
+
+                // 즉시 반영(or 재조회)
+                if (cex.Latest is not null)
+                {
+                    SelectedScheduleDetail = cex.Latest;
+
+                    // 같은 Id를 다시 선택해서 정합성 확보
+                    var target = Schedules.FirstOrDefault(x => x.Id == cex.Latest.Id);
+                    if (target is not null)
+                        SelectedSchedule = target;
+                }
+
+                return;
+            }
+
             await LoadSchedulesAsync();
 
             // 수정 후 상세 재조회

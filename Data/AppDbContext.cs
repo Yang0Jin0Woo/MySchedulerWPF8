@@ -10,7 +10,6 @@ public class AppDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        // (현재 프로젝트: SQLite)
         var dbPath = Path.Combine(AppContext.BaseDirectory, "myscheduler.db");
         optionsBuilder.UseSqlite($"Data Source={dbPath}");
     }
@@ -20,5 +19,10 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ScheduleItem>()
             .Property(x => x.IsAllDay)
             .HasDefaultValue(false);
+
+        // 동시성 토큰
+        modelBuilder.Entity<ScheduleItem>()
+            .Property(x => x.RowVersion)
+            .IsRowVersion();
     }
 }

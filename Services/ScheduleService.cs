@@ -48,8 +48,36 @@ public class ScheduleService : IScheduleService
     public async Task UpdateAsync(ScheduleItem item)
     {
         await using var db = new AppDbContext();
+
         db.Schedules.Update(item);
-        await db.SaveChangesAsync();
+
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // 최신 DB 가져오기(삭제 경우 null)
+            var entry = ex.Entries.Single();
+            var dbValues = await entry.GetDatabaseValuesAsync();
+
+            if (dbValues is null)
+            {
+                throw new ConcurrencyConflictException(
+                    "다른 곳에서 이미 삭제된 일정입니다. 최신 목록으로 갱신합니다.",
+                    latest: null,
+                    isDeleted: true
+                );
+            }
+
+            var latest = (ScheduleItem)dbValues.ToObject();
+
+            throw new ConcurrencyConflictException(
+                "다른 곳에서 일정이 수정되었습니다. 최신 데이터로 갱신합니다.",
+                latest: latest,
+                isDeleted: false
+            );
+        }
     }
 
     // delete 일정 삭제
