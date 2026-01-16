@@ -6,6 +6,7 @@ public class ScheduleListItem
     public string Title { get; set; } = "";
     public DateTime StartAt { get; set; }
     public DateTime EndAt { get; set; }
+    public string? Location { get; set; }
 
     public string TimeRangeText =>
         $"{ToKoreanTime(StartAt)} - {ToKoreanTime(EndAt)}";

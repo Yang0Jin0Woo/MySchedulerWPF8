@@ -22,7 +22,8 @@ public class ScheduleService : IScheduleService
                 Id = x.Id,
                 Title = x.Title,
                 StartAt = x.StartAt,
-                EndAt = x.EndAt
+                EndAt = x.EndAt,
+                Location = x.Location
             })
             .ToListAsync();
     }

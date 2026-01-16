@@ -6,9 +6,12 @@ using MyScheduler.Utils;
 using MyScheduler.Views;
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Threading;
 
 namespace MyScheduler.ViewModels;
@@ -27,6 +30,37 @@ public partial class MainViewModel : ObservableObject
     }
 
     public ObservableCollection<ScheduleListItem> Schedules { get; } = new();
+
+    public ICollectionView SchedulesView { get; }
+
+    public ObservableCollection<string> SearchScopes { get; } = new()
+    {
+        "전체", "제목", "장소"
+    };
+
+    private string _selectedSearchScope = "전체";
+    public string SelectedSearchScope
+    {
+        get => _selectedSearchScope;
+        set
+        {
+            if (SetProperty(ref _selectedSearchScope, value))
+                RefreshSchedulesView();
+        }
+    }
+
+    private string _searchText = "";
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (SetProperty(ref _searchText, value))
+                RefreshSchedulesView();
+        }
+    }
+
+    public ObservableCollection<ScheduleListItem> FilteredSchedules => Schedules;
 
     private DateTime _selectedDate = DateTime.Today;
     public DateTime SelectedDate
@@ -68,7 +102,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // Read 로딩 상태
     private bool _isLoadingList;
     public bool IsLoadingList
     {
@@ -83,9 +116,6 @@ public partial class MainViewModel : ObservableObject
         private set => SetProperty(ref _isLoadingDetail, value);
     }
 
-    // Write 재진입 방지
-    // Add/Edit/Delete 실행 중이면 IsBusy=true로 두고
-    // 모든 Write를 CanExecute에서 막아 연타/중복 실행 방지
     private bool _isBusy;
     public bool IsBusy
     {
@@ -94,7 +124,6 @@ public partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _isBusy, value))
             {
-                // Busy 상태 바뀌면 버튼 활성/비활성 즉시 갱신
                 AddScheduleCommand.NotifyCanExecuteChanged();
                 EditScheduleCommand.NotifyCanExecuteChanged();
                 DeleteScheduleCommand.NotifyCanExecuteChanged();
@@ -102,16 +131,19 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // 레이스 컨디션 방지(마지막 요청만 반영)
     private int _listRequestVersion = 0;
     private int _detailRequestVersion = 0;
 
+    private static readonly CultureInfo KoreanCulture = new("ko-KR");
+
     public MainViewModel()
     {
+        SchedulesView = CollectionViewSource.GetDefaultView(Schedules);
+        SchedulesView.Filter = FilterSchedule;
+
         _ = LoadSchedulesAsync();
 
         UpdateClock();
-
         _clockTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(1)
@@ -120,23 +152,62 @@ public partial class MainViewModel : ObservableObject
         _clockTimer.Start();
     }
 
-    private static readonly CultureInfo KoreanCulture = new("ko-KR");
-
     private void UpdateClock()
     {
         var kstNow = TimeUtil.GetKoreaNow();
-        CurrentTimeText = kstNow.ToString("tt h:mm:ss", KoreanCulture); // (24시 기준)"HH:mm:ss" or "HH:mm"
+        CurrentTimeText = kstNow.ToString("tt h:mm:ss", KoreanCulture);
     }
 
-    // 종료 시 정리
     public void StopClock() => _clockTimer.Stop();
 
-
     private bool CanAdd() => !IsBusy;
-
     private bool CanEditOrDelete() => !IsBusy && SelectedScheduleDetail is not null;
 
-    // READ - List
+    // 검색 필터
+    private bool FilterSchedule(object obj)
+    {
+        if (obj is not ScheduleListItem item) return false;
+
+        var keyword = (SearchText ?? "").Trim();
+        if (keyword.Length == 0) return true;
+
+        bool Contains(string? text) =>
+            !string.IsNullOrWhiteSpace(text) &&
+            text.Contains(keyword, StringComparison.CurrentCultureIgnoreCase);
+
+        return SelectedSearchScope switch
+        {
+            "제목" => Contains(item.Title),
+            "장소" => Contains(item.Location),
+            _ => Contains(item.Title) || Contains(item.Location)
+        };
+    }
+
+    private void RefreshSchedulesView()
+    {
+        SchedulesView.Refresh();
+
+        // 필터로 인해 선택 항목이 사라지면 상세도 초기화
+        if (SelectedSchedule is not null && !SchedulesView.Cast<object>().Contains(SelectedSchedule))
+        {
+            SelectedSchedule = null;
+            SelectedScheduleDetail = null;
+        }
+    }
+
+    [RelayCommand]
+    private void ApplySearch()
+    {
+        SchedulesView.Refresh();
+    }
+
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        SearchText = "";
+        SelectedSearchScope = "전체";
+    }
+
     [RelayCommand]
     private async Task LoadSchedulesAsync()
     {
@@ -147,13 +218,14 @@ public partial class MainViewModel : ObservableObject
         {
             var items = await _scheduleService.GetListByDateAsync(SelectedDate);
 
-            // 레이스 방지: 마지막 요청만 반영
             if (myVersion != _listRequestVersion) return;
 
             Schedules.Clear();
             foreach (var it in items) Schedules.Add(it);
 
-            // 날짜 바뀌면 상세 초기화
+            // 목록 갱신 후 필터 반영
+            RefreshSchedulesView();
+
             SelectedSchedule = null;
             SelectedScheduleDetail = null;
         }
@@ -164,7 +236,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // READ - Detail
     [RelayCommand]
     private async Task LoadSelectedDetailAsync()
     {
@@ -180,9 +251,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             var detail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
-            //MessageBox.Show(detail is null ? "detail == null" : $"detail OK: {detail.TimeRangeText}");
 
-            // 레이스 방지: 마지막 요청만 반영
             if (myVersion == _detailRequestVersion)
                 SelectedScheduleDetail = detail;
         }
@@ -196,11 +265,9 @@ public partial class MainViewModel : ObservableObject
         EditScheduleCommand.NotifyCanExecuteChanged();
     }
 
-    // CREATE (재진입 방지 적용)
     [RelayCommand(CanExecute = nameof(CanAdd))]
     private async Task AddScheduleAsync()
     {
-        // 연타/중복 실행 방지
         IsBusy = true;
 
         try
@@ -224,7 +291,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // UPDATE (재진입 방지 적용)
     [RelayCommand(CanExecute = nameof(CanEditOrDelete))]
     private async Task EditScheduleAsync()
     {
@@ -244,42 +310,9 @@ public partial class MainViewModel : ObservableObject
             var ok = win.ShowDialog();
             if (ok != true || vm.Result is null) return;
 
-            try
-            {
-                await _scheduleService.UpdateAsync(vm.Result);
-            }
-            catch (ConcurrencyConflictException cex)
-            {
-                MessageBox.Show(cex.Message, "동시성 충돌", MessageBoxButton.OK, MessageBoxImage.Warning);
-
-                // 최신 목록 갱신
-                await LoadSchedulesAsync();
-
-                // 삭제된 케이스면 선택 초기화
-                if (cex.IsDeleted)
-                {
-                    SelectedSchedule = null;
-                    SelectedScheduleDetail = null;
-                    return;
-                }
-
-                // 즉시 반영(or 재조회)
-                if (cex.Latest is not null)
-                {
-                    SelectedScheduleDetail = cex.Latest;
-
-                    // 같은 Id를 다시 선택해서 정합성 확보
-                    var target = Schedules.FirstOrDefault(x => x.Id == cex.Latest.Id);
-                    if (target is not null)
-                        SelectedSchedule = target;
-                }
-
-                return;
-            }
-
+            await _scheduleService.UpdateAsync(vm.Result);
             await LoadSchedulesAsync();
 
-            // 수정 후 상세 재조회
             if (SelectedSchedule is not null)
                 SelectedScheduleDetail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
         }
@@ -289,7 +322,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // DELETE (재진입 방지 적용)
     [RelayCommand(CanExecute = nameof(CanEditOrDelete))]
     private async Task DeleteScheduleAsync()
     {
