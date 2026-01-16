@@ -1,6 +1,6 @@
 ﻿# 일정 관리 앱(MyScheduler)
 
-## 📸 Screenshots
+## Screenshots
 
 ### 메인 화면
 <img src="screenshots/image1.png" width="800"/>
@@ -20,7 +20,7 @@ CRUD 구현과 **비동기 레이스 컨디션 방지**, **확장 시 동시성 
 
 ---
 
-## 🛠 기술 스택
+## 기술 스택
 
 - **Language**: C#
 - **Framework**: .NET 8.0 (WPF)
