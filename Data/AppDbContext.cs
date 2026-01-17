@@ -1,18 +1,26 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using MyScheduler.Models;
 
+namespace MyScheduler;
+
 public class AppDbContext : DbContext
 {
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
     public DbSet<ScheduleItem> Schedules => Set<ScheduleItem>();
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        var conn =
-            "Server=localhost\\SQLEXPRESS;" +
-            "Database=MySchedulerDb;" +
-            "Trusted_Connection=True;" +
-            "TrustServerCertificate=True;";
+        base.OnModelCreating(modelBuilder);
 
-        optionsBuilder.UseSqlServer(conn);
+        modelBuilder.Entity<ScheduleItem>()
+            .HasIndex(x => x.StartAt);
+
+        modelBuilder.Entity<ScheduleItem>()
+            .HasIndex(x => x.EndAt);
+
+        modelBuilder.Entity<ScheduleItem>()
+            .Property(x => x.RowVersion)
+            .IsRowVersion();
     }
 }

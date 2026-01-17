@@ -18,7 +18,7 @@ namespace MyScheduler.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private readonly IScheduleService _scheduleService = new ScheduleService();
+    private readonly IScheduleService _scheduleService;
 
     private readonly DispatcherTimer _clockTimer;
 
@@ -30,7 +30,6 @@ public partial class MainViewModel : ObservableObject
     }
 
     public ObservableCollection<ScheduleListItem> Schedules { get; } = new();
-
     public ICollectionView SchedulesView { get; }
 
     public ObservableCollection<string> SearchScopes { get; } = new()
@@ -136,8 +135,10 @@ public partial class MainViewModel : ObservableObject
 
     private static readonly CultureInfo KoreanCulture = new("ko-KR");
 
-    public MainViewModel()
+    public MainViewModel(IScheduleService scheduleService)
     {
+        _scheduleService = scheduleService;
+
         SchedulesView = CollectionViewSource.GetDefaultView(Schedules);
         SchedulesView.Filter = FilterSchedule;
 
@@ -187,7 +188,6 @@ public partial class MainViewModel : ObservableObject
     {
         SchedulesView.Refresh();
 
-        // 필터로 인해 선택 항목이 사라지면 상세도 초기화
         if (SelectedSchedule is not null && !SchedulesView.Cast<object>().Contains(SelectedSchedule))
         {
             SelectedSchedule = null;
@@ -196,10 +196,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ApplySearch()
-    {
-        SchedulesView.Refresh();
-    }
+    private void ApplySearch() => SchedulesView.Refresh();
 
     [RelayCommand]
     private void ClearSearch()
@@ -217,13 +214,11 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var items = await _scheduleService.GetListByDateAsync(SelectedDate);
-
             if (myVersion != _listRequestVersion) return;
 
             Schedules.Clear();
             foreach (var it in items) Schedules.Add(it);
 
-            // 목록 갱신 후 필터 반영
             RefreshSchedulesView();
 
             SelectedSchedule = null;
@@ -300,7 +295,10 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var vm = new ScheduleEditViewModel(SelectedDate, SelectedScheduleDetail);
+            // 현재 로컬에서 보고 있는 값(사용자 수정 전 기본값)
+            var original = SelectedScheduleDetail;
+
+            var vm = new ScheduleEditViewModel(SelectedDate, original);
             var win = new ScheduleEditWindow
             {
                 Owner = Application.Current?.MainWindow,
@@ -310,7 +308,17 @@ public partial class MainViewModel : ObservableObject
             var ok = win.ShowDialog();
             if (ok != true || vm.Result is null) return;
 
-            await _scheduleService.UpdateAsync(vm.Result);
+            var edited = vm.Result;
+
+            try
+            {
+                await _scheduleService.UpdateAsync(edited);
+            }
+            catch (ConcurrencyConflictException cex)
+            {
+                await HandleConcurrencyConflictAsync(cex, edited);
+            }
+
             await LoadSchedulesAsync();
 
             if (SelectedSchedule is not null)
@@ -342,5 +350,95 @@ public partial class MainViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    private async Task HandleConcurrencyConflictAsync(ConcurrencyConflictException ex, ScheduleItem myEdited)
+    {
+        if (ex.IsDeleted)
+        {
+            MessageBox.Show(
+                ex.Message,
+                "동시성 충돌",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+
+            // 삭제되었으면 목록 갱신으로 정리
+            await LoadSchedulesAsync();
+            return;
+        }
+
+        if (ex.Latest is null)
+        {
+            MessageBox.Show(
+                "최신 데이터를 가져올 수 없습니다. 목록을 갱신합니다.",
+                "동시성 충돌",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+
+            await LoadSchedulesAsync();
+            return;
+        }
+
+        // 3가지 선택(Yes/No/Cancel) Yes: 최신으로 갱신, No: 내 변경 덮어쓰기(강제 저장), Cancel: 병합(최신 기준으로 다시 편집)
+        var result = MessageBox.Show(
+            "다른 곳에서 이미 수정된 일정입니다.\n\n" +
+            "예(Y): 최신 내용으로 갱신\n" +
+            "아니오(N): 내 변경으로 덮어쓰기\n" +
+            "취소(C): 병합(편집창에서 다시 조정)",
+            "동시성 충돌 처리",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            SelectedScheduleDetail = ex.Latest;
+            MessageBox.Show("최신 내용으로 갱신했습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (result == MessageBoxResult.No)
+        {
+            // 내 변경 덮어쓰기: 최신 RowVersion으로 교체 후 재시도
+            myEdited.RowVersion = ex.Latest.RowVersion;
+
+            await _scheduleService.UpdateAsync(myEdited);
+
+            MessageBox.Show("내 변경으로 덮어썼습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // 병합: 최신 기반으로 편집창을 다시 열고, 내 변경값을 초기값으로 반영(수동 조정 유도)
+        var mergeVm = new ScheduleEditViewModel(SelectedDate, ex.Latest);
+
+        mergeVm.Title = myEdited.Title;
+        mergeVm.Location = myEdited.Location;
+        mergeVm.Notes = myEdited.Notes;
+        mergeVm.StartDate = myEdited.StartAt.Date;
+        mergeVm.EndDate = myEdited.EndAt.Date;
+        mergeVm.StartTime = SnapTo30Minutes(myEdited.StartAt.TimeOfDay);
+        mergeVm.EndTime = SnapTo30Minutes(myEdited.EndAt.TimeOfDay);
+
+        var mergeWin = new ScheduleEditWindow
+        {
+            Owner = Application.Current?.MainWindow,
+            DataContext = mergeVm
+        };
+
+        var ok = mergeWin.ShowDialog();
+        if (ok != true || mergeVm.Result is null) return;
+
+        // 병합 결과 저장: 최신 RowVersion으로 맞추고 저장 재시도
+        mergeVm.Result.RowVersion = ex.Latest.RowVersion;
+        await _scheduleService.UpdateAsync(mergeVm.Result);
+
+        MessageBox.Show("병합 후 저장했습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private static TimeSpan SnapTo30Minutes(TimeSpan time)
+    {
+        var totalMinutes = (int)Math.Round(time.TotalMinutes / 30.0) * 30;
+        totalMinutes %= (24 * 60);
+        if (totalMinutes < 0) totalMinutes += (24 * 60);
+        return TimeSpan.FromMinutes(totalMinutes);
     }
 }

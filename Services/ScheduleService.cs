@@ -5,13 +5,20 @@ namespace MyScheduler.Services;
 
 public class ScheduleService : IScheduleService
 {
+    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+
+    public ScheduleService(IDbContextFactory<AppDbContext> dbFactory)
+    {
+        _dbFactory = dbFactory;
+    }
+
     // read - list: 날짜 기준 목록 조회
     public async Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date)
     {
         var start = date.Date;
         var end = start.AddDays(1);
 
-        await using var db = new AppDbContext();
+        await using var db = await _dbFactory.CreateDbContextAsync();
 
         return await db.Schedules
             .Where(x => x.StartAt < end && x.EndAt >= start)
@@ -30,24 +37,23 @@ public class ScheduleService : IScheduleService
     // read - detail 선택한 일정 id로 상세 조회
     public async Task<ScheduleItem?> GetByIdAsync(int id)
     {
-        await using var db = new AppDbContext();
+        await using var db = await _dbFactory.CreateDbContextAsync();
         return await db.Schedules.FirstOrDefaultAsync(x => x.Id == id);
     }
 
     // create 일정 추가
     public async Task<ScheduleItem> AddAsync(ScheduleItem item)
     {
-        await using var db = new AppDbContext();
+        await using var db = await _dbFactory.CreateDbContextAsync();
         db.Schedules.Add(item);
         await db.SaveChangesAsync();
         return item;
     }
 
-    // update 일정 수정(현재는 단일 구조)
-    // 서버형 환경으로 확장 시, 동시 수정 충돌 발생하면 최신 데이터 다시 불러오기 or 병합 후 재시도
+    // update 일정 수정
     public async Task UpdateAsync(ScheduleItem item)
     {
-        await using var db = new AppDbContext();
+        await using var db = await _dbFactory.CreateDbContextAsync();
 
         db.Schedules.Update(item);
 
@@ -57,7 +63,6 @@ public class ScheduleService : IScheduleService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            // 최신 DB 가져오기(삭제 경우 null)
             var entry = ex.Entries.Single();
             var dbValues = await entry.GetDatabaseValuesAsync();
 
@@ -83,7 +88,7 @@ public class ScheduleService : IScheduleService
     // delete 일정 삭제
     public async Task DeleteAsync(int id)
     {
-        await using var db = new AppDbContext();
+        await using var db = await _dbFactory.CreateDbContextAsync();
         var target = await db.Schedules.FindAsync(id);
         if (target is null) return;
 
