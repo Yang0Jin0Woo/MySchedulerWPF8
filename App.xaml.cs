@@ -2,8 +2,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System.IO;
 using System.Windows;
+using MyScheduler.Repositories;
 using MyScheduler.Services;
 using MyScheduler.ViewModels;
 
@@ -28,9 +28,14 @@ public partial class App : Application
                     var conn = ctx.Configuration.GetConnectionString("Default")
                                ?? throw new InvalidOperationException("ConnectionStrings:Default 가 없습니다.");
 
+                    // EF Core
                     services.AddDbContextFactory<AppDbContext>(opt => opt.UseSqlServer(conn));
 
+                    // Repository + Service
+                    services.AddSingleton<IScheduleRepository, EfScheduleRepository>();
                     services.AddSingleton<IScheduleService, ScheduleService>();
+
+                    // UI
                     services.AddTransient<MainViewModel>();
                     services.AddTransient<MainWindow>();
                 })
@@ -62,7 +67,6 @@ public partial class App : Application
             Shutdown(-1);
         }
     }
-
 
     protected override async void OnExit(ExitEventArgs e)
     {

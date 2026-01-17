@@ -1,72 +1,39 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using MyScheduler.Models;
+using MyScheduler.Repositories;
 
 namespace MyScheduler.Services;
 
 public class ScheduleService : IScheduleService
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IScheduleRepository _repo;
 
-    public ScheduleService(IDbContextFactory<AppDbContext> dbFactory)
+    public ScheduleService(IScheduleRepository repo)
     {
-        _dbFactory = dbFactory;
+        _repo = repo;
     }
 
-    // read - list: 날짜 기준 목록 조회
-    public async Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date)
-    {
-        var start = date.Date;
-        var end = start.AddDays(1);
+    public Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date)
+        => _repo.GetListByDateAsync(date);
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
+    public Task<ScheduleItem?> GetByIdAsync(int id)
+        => _repo.GetByIdAsync(id);
 
-        return await db.Schedules
-            .Where(x => x.StartAt < end && x.EndAt >= start)
-            .OrderBy(x => x.StartAt)
-            .Select(x => new ScheduleListItem
-            {
-                Id = x.Id,
-                Title = x.Title,
-                StartAt = x.StartAt,
-                EndAt = x.EndAt,
-                Location = x.Location
-            })
-            .ToListAsync();
-    }
+    public Task<ScheduleItem> AddAsync(ScheduleItem item)
+        => _repo.AddAsync(item);
 
-    // read - detail 선택한 일정 id로 상세 조회
-    public async Task<ScheduleItem?> GetByIdAsync(int id)
-    {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        return await db.Schedules.FirstOrDefaultAsync(x => x.Id == id);
-    }
-
-    // create 일정 추가
-    public async Task<ScheduleItem> AddAsync(ScheduleItem item)
-    {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        db.Schedules.Add(item);
-        await db.SaveChangesAsync();
-        return item;
-    }
-
-    // update 일정 수정
     public async Task UpdateAsync(ScheduleItem item)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-
-        db.Schedules.Update(item);
-
         try
         {
-            await db.SaveChangesAsync();
+            await _repo.UpdateAsync(item);
         }
-        catch (DbUpdateConcurrencyException ex)
+        catch (DbUpdateConcurrencyException)
         {
-            var entry = ex.Entries.Single();
-            var dbValues = await entry.GetDatabaseValuesAsync();
+            // 충돌 시 최신 데이터를 조회해서 ViewModel에 전달 가능한 형태로 변환
+            var latest = await _repo.GetByIdAsync(item.Id);
 
-            if (dbValues is null)
+            if (latest is null)
             {
                 throw new ConcurrencyConflictException(
                     "다른 곳에서 이미 삭제된 일정입니다. 최신 목록으로 갱신합니다.",
@@ -74,8 +41,6 @@ public class ScheduleService : IScheduleService
                     isDeleted: true
                 );
             }
-
-            var latest = (ScheduleItem)dbValues.ToObject();
 
             throw new ConcurrencyConflictException(
                 "다른 곳에서 일정이 수정되었습니다. 최신 데이터로 갱신합니다.",
@@ -85,14 +50,6 @@ public class ScheduleService : IScheduleService
         }
     }
 
-    // delete 일정 삭제
-    public async Task DeleteAsync(int id)
-    {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var target = await db.Schedules.FindAsync(id);
-        if (target is null) return;
-
-        db.Schedules.Remove(target);
-        await db.SaveChangesAsync();
-    }
+    public Task DeleteAsync(int id)
+        => _repo.DeleteAsync(id);
 }
