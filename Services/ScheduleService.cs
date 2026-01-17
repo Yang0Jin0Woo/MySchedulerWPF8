@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using MyScheduler.Data;
 using MyScheduler.Models;
 
 namespace MyScheduler.Services;

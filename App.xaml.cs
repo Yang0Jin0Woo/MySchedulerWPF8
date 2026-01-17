@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using MyScheduler.Data;
 using System.Windows;
 
 namespace MyScheduler;
