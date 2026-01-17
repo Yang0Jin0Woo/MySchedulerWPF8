@@ -311,28 +311,14 @@ public partial class MainViewModel : ObservableObject
             }
             catch (ConcurrencyConflictException cex)
             {
-                // 1) 사용자 알림
-                MessageBox.Show(
-                    cex.Message,
-                    "동시성 충돌",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                // 동시성 처리(갱신/덮어쓰기/병합) 수행
+                await HandleConcurrencyConflictAsync(cex, vm.Result);
 
-                // 2) 삭제된 경우: 목록/상세 정리
-                if (cex.IsDeleted)
-                {
-                    SelectedSchedule = null;
-                    SelectedScheduleDetail = null;
-                    await LoadSchedulesAsync();
-                    return;
-                }
+                // 충돌 처리 후에도 목록/상세가 최신 상태가 되도록 정리
+                await LoadSchedulesAsync();
 
-                // 3) 수정 충돌: 최신 데이터로 상세 갱신 + 목록 갱신
-                if (cex.Latest is not null)
-                {
-                    SelectedScheduleDetail = cex.Latest;
-                    await LoadSchedulesAsync();
-                }
+                if (SelectedSchedule is not null)
+                    SelectedScheduleDetail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
 
                 return;
             }
@@ -397,7 +383,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // 3가지 선택(Yes/No/Cancel) Yes: 최신으로 갱신, No: 내 변경 덮어쓰기(강제 저장), Cancel: 병합(최신 기준으로 다시 편집)
+        // Yes: 최신으로 갱신, No: 내 변경 덮어쓰기(강제 저장), Cancel: 병합(최신 기준으로 다시 편집)
         var result = MessageBox.Show(
             "다른 곳에서 이미 수정된 일정입니다.\n\n" +
             "예(Y): 최신 내용으로 갱신\n" +
@@ -416,7 +402,7 @@ public partial class MainViewModel : ObservableObject
 
         if (result == MessageBoxResult.No)
         {
-            // 내 변경 덮어쓰기: 최신 RowVersion으로 교체 후 재시도
+            // 내 변경 덮어쓰기
             myEdited.RowVersion = ex.Latest.RowVersion;
 
             await _scheduleService.UpdateAsync(myEdited);
@@ -425,7 +411,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // 병합: 최신 기반으로 편집창을 다시 열고, 내 변경값을 초기값으로 반영(수동 조정 유도)
+        // 병합
         var mergeVm = new ScheduleEditViewModel(SelectedDate, ex.Latest);
 
         mergeVm.Title = myEdited.Title;
