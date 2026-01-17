@@ -295,10 +295,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            // 현재 로컬에서 보고 있는 값(사용자 수정 전 기본값)
-            var original = SelectedScheduleDetail;
-
-            var vm = new ScheduleEditViewModel(SelectedDate, original);
+            var vm = new ScheduleEditViewModel(SelectedDate, SelectedScheduleDetail);
             var win = new ScheduleEditWindow
             {
                 Owner = Application.Current?.MainWindow,
@@ -308,15 +305,36 @@ public partial class MainViewModel : ObservableObject
             var ok = win.ShowDialog();
             if (ok != true || vm.Result is null) return;
 
-            var edited = vm.Result;
-
             try
             {
-                await _scheduleService.UpdateAsync(edited);
+                await _scheduleService.UpdateAsync(vm.Result);
             }
             catch (ConcurrencyConflictException cex)
             {
-                await HandleConcurrencyConflictAsync(cex, edited);
+                // 1) 사용자 알림
+                MessageBox.Show(
+                    cex.Message,
+                    "동시성 충돌",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                // 2) 삭제된 경우: 목록/상세 정리
+                if (cex.IsDeleted)
+                {
+                    SelectedSchedule = null;
+                    SelectedScheduleDetail = null;
+                    await LoadSchedulesAsync();
+                    return;
+                }
+
+                // 3) 수정 충돌: 최신 데이터로 상세 갱신 + 목록 갱신
+                if (cex.Latest is not null)
+                {
+                    SelectedScheduleDetail = cex.Latest;
+                    await LoadSchedulesAsync();
+                }
+
+                return;
             }
 
             await LoadSchedulesAsync();
