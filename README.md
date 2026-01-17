@@ -43,7 +43,7 @@ ViewModel (상태 관리, Command 처리, 비동기 요청 흐름 제어)
  ↓
 Service (비즈니스 로직)
  ↓
-EF Core (ORM / Data Access)
+Repository (ORM / Data Access)
  ↓
 Database (MSSQL)
 
