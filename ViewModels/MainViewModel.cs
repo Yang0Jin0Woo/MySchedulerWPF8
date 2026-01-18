@@ -164,7 +164,6 @@ public partial class MainViewModel : ObservableObject
     private bool CanAdd() => !IsBusy;
     private bool CanEditOrDelete() => !IsBusy && SelectedScheduleDetail is not null;
 
-    // 검색 필터
     private bool FilterSchedule(object obj)
     {
         if (obj is not ScheduleListItem item) return false;
@@ -327,19 +326,17 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 await _scheduleService.UpdateAsync(vm.Result);
+                await LoadSchedulesAsync();
             }
             catch (ConcurrencyConflictException cex)
             {
-                // 동시성 처리(갱신/덮어쓰기/병합) 수행
-                await HandleConcurrencyConflictAsync(cex, vm.Result);
+                // 충돌 처리 결과에 따라 목록 갱신 필요 판단
+                var shouldReload = await HandleConcurrencyConflictAsync(cex, vm.Result);
 
-                // 충돌 처리 후에도 목록/상세가 최신 상태가 되도록 정리
-                await LoadSchedulesAsync();
-
-                return;
+                // 목록 갱신은 1번만 수행
+                if (shouldReload)
+                    await LoadSchedulesAsync();
             }
-
-            await LoadSchedulesAsync();
         }
         finally
         {
@@ -369,7 +366,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private async Task HandleConcurrencyConflictAsync(ConcurrencyConflictException ex, ScheduleItem myEdited)
+    private async Task<bool> HandleConcurrencyConflictAsync(ConcurrencyConflictException ex, ScheduleItem myEdited)
     {
         if (ex.IsDeleted)
         {
@@ -379,9 +376,7 @@ public partial class MainViewModel : ObservableObject
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
 
-            // 삭제되었으면 목록 갱신으로 정리
-            await LoadSchedulesAsync();
-            return;
+            return true;
         }
 
         if (ex.Latest is null)
@@ -392,8 +387,7 @@ public partial class MainViewModel : ObservableObject
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
 
-            await LoadSchedulesAsync();
-            return;
+            return true;
         }
 
         // Yes: 최신으로 갱신, No: 내 변경 덮어쓰기(강제 저장), Cancel: 병합(최신 기준으로 다시 편집)
@@ -406,22 +400,25 @@ public partial class MainViewModel : ObservableObject
             MessageBoxButton.YesNoCancel,
             MessageBoxImage.Question);
 
+        // 최신 갱신
         if (result == MessageBoxResult.Yes)
         {
             SelectedScheduleDetail = ex.Latest;
             MessageBox.Show("최신 내용으로 갱신했습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
+
+            return false;
         }
 
+        // 내 변경 덮어쓰기
         if (result == MessageBoxResult.No)
         {
-            // 내 변경 덮어쓰기
             myEdited.RowVersion = ex.Latest.RowVersion;
 
             try
             {
                 await _scheduleService.UpdateAsync(myEdited);
                 MessageBox.Show("내 변경으로 덮어썼습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+                return true;
             }
             catch (ConcurrencyConflictException again)
             {
@@ -431,20 +428,16 @@ public partial class MainViewModel : ObservableObject
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
 
-                // 최신 데이터로 화면 동기화
                 if (again.IsDeleted)
-                {
-                    await LoadSchedulesAsync();
-                    return;
-                }
+                    return true;
 
                 if (again.Latest is not null)
                     SelectedScheduleDetail = again.Latest;
                 else
                     SelectedScheduleDetail = await _scheduleService.GetByIdAsync(myEdited.Id);
-            }
 
-            return;
+                return false;
+            }
         }
 
         // 병합
@@ -465,15 +458,16 @@ public partial class MainViewModel : ObservableObject
         };
 
         var ok = mergeWin.ShowDialog();
-        if (ok != true || mergeVm.Result is null) return;
+        if (ok != true || mergeVm.Result is null)
+            return false;
 
-        // 병합 결과 저장: 최신 RowVersion으로 맞추고 저장 재시도
         mergeVm.Result.RowVersion = ex.Latest.RowVersion;
 
         try
         {
             await _scheduleService.UpdateAsync(mergeVm.Result);
             MessageBox.Show("병합 후 저장했습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            return true;
         }
         catch (ConcurrencyConflictException again)
         {
@@ -484,15 +478,14 @@ public partial class MainViewModel : ObservableObject
                 MessageBoxImage.Warning);
 
             if (again.IsDeleted)
-            {
-                await LoadSchedulesAsync();
-                return;
-            }
+                return true;
 
             if (again.Latest is not null)
                 SelectedScheduleDetail = again.Latest;
             else
                 SelectedScheduleDetail = await _scheduleService.GetByIdAsync(myEdited.Id);
+
+            return false;
         }
     }
 
