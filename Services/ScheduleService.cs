@@ -6,50 +6,37 @@ namespace MyScheduler.Services;
 
 public class ScheduleService : IScheduleService
 {
-    private readonly IScheduleRepository _repo;
+    private readonly IScheduleRepository _repository;
 
-    public ScheduleService(IScheduleRepository repo)
+    public ScheduleService(IScheduleRepository repository)
     {
-        _repo = repo;
+        _repository = repository;
     }
 
     public Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date)
-        => _repo.GetListByDateAsync(date);
+        => _repository.GetListByDateAsync(date);
 
     public Task<ScheduleItem?> GetByIdAsync(int id)
-        => _repo.GetByIdAsync(id);
+        => _repository.GetByIdAsync(id);
 
     public Task<ScheduleItem> AddAsync(ScheduleItem item)
-        => _repo.AddAsync(item);
+        => _repository.AddAsync(item);
 
     public async Task UpdateAsync(ScheduleItem item)
     {
         try
         {
-            await _repo.UpdateAsync(item);
+            await _repository.UpdateAsync(item);
         }
         catch (DbUpdateConcurrencyException)
         {
-            // 충돌 시 최신 데이터를 조회해서 ViewModel에 전달 가능한 형태로 변환
-            var latest = await _repo.GetByIdAsync(item.Id);
+            var latest = await _repository.GetByIdAsync(item.Id);
+            var isDeleted = latest is null;
 
-            if (latest is null)
-            {
-                throw new ConcurrencyConflictException(
-                    "다른 곳에서 이미 삭제된 일정입니다. 최신 목록으로 갱신합니다.",
-                    latest: null,
-                    isDeleted: true
-                );
-            }
-
-            throw new ConcurrencyConflictException(
-                "다른 곳에서 일정이 수정되었습니다. 최신 데이터로 갱신합니다.",
-                latest: latest,
-                isDeleted: false
-            );
+            throw new ConcurrencyConflictException(latest, isDeleted);
         }
     }
 
     public Task DeleteAsync(int id)
-        => _repo.DeleteAsync(id);
+        => _repository.DeleteAsync(id);
 }

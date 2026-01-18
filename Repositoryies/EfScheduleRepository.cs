@@ -5,67 +5,53 @@ namespace MyScheduler.Repositories;
 
 public class EfScheduleRepository : IScheduleRepository
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly AppDbContext _context;
 
-    public EfScheduleRepository(IDbContextFactory<AppDbContext> dbFactory)
+    public EfScheduleRepository(AppDbContext context)
     {
-        _dbFactory = dbFactory;
+        _context = context;
     }
 
-    public async Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date)
+    public Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date)
     {
-        var start = date.Date;
-        var end = start.AddDays(1);
+        var d = date.Date;
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-
-        return await db.Schedules
-            .Where(x => x.StartAt < end && x.EndAt >= start)
+        return _context.Schedules
+            .Where(x => x.StartAt.Date == d)
             .OrderBy(x => x.StartAt)
             .Select(x => new ScheduleListItem
             {
                 Id = x.Id,
                 Title = x.Title,
+                Location = x.Location,
                 StartAt = x.StartAt,
-                EndAt = x.EndAt,
-                Location = x.Location
+                EndAt = x.EndAt
             })
             .ToListAsync();
     }
 
-    public async Task<ScheduleItem?> GetByIdAsync(int id)
-    {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        return await db.Schedules.FirstOrDefaultAsync(x => x.Id == id);
-    }
+    public Task<ScheduleItem?> GetByIdAsync(int id)
+        => _context.Schedules.FirstOrDefaultAsync(x => x.Id == id);
 
     public async Task<ScheduleItem> AddAsync(ScheduleItem item)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        db.Schedules.Add(item);
-        await db.SaveChangesAsync();
+        _context.Schedules.Add(item);
+        await _context.SaveChangesAsync();
         return item;
     }
 
     public async Task UpdateAsync(ScheduleItem item)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-
-        // RowVersion을 포함한 업데이트 시도
-        db.Schedules.Update(item);
-
-        // 충돌 시 Exception 발생
-        await db.SaveChangesAsync();
+        _context.Entry(item).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(int id)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        var entity = await _context.Schedules.FirstOrDefaultAsync(x => x.Id == id);
+        if (entity is null) return;
 
-        var target = await db.Schedules.FindAsync(id);
-        if (target is null) return;
-
-        db.Schedules.Remove(target);
-        await db.SaveChangesAsync();
+        _context.Schedules.Remove(entity);
+        await _context.SaveChangesAsync();
     }
 }

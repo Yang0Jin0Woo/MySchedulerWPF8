@@ -323,18 +323,19 @@ public partial class MainViewModel : ObservableObject
             var ok = win.ShowDialog();
             if (ok != true || vm.Result is null) return;
 
+            var shouldReload = true;
+
             try
             {
                 await _scheduleService.UpdateAsync(vm.Result);
-                await LoadSchedulesAsync(); //목록 갱신
             }
             catch (ConcurrencyConflictException cex)
             {
-                var shouldReload = HandleConcurrencyConflict(cex, vm.Result);
-
-                if (shouldReload)
-                    await LoadSchedulesAsync();
+                shouldReload = HandleConcurrencyConflict(cex);
             }
+
+            if (shouldReload)
+                await LoadSchedulesAsync();
         }
         finally
         {
@@ -364,9 +365,8 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool HandleConcurrencyConflict(ConcurrencyConflictException ex, ScheduleItem myEdited)
+    private bool HandleConcurrencyConflict(ConcurrencyConflictException ex)
     {
-        // 이미 삭제된 경우
         if (ex.IsDeleted)
         {
             MessageBox.Show(
@@ -375,25 +375,25 @@ public partial class MainViewModel : ObservableObject
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
 
-            return true; // 목록 갱신 필요
+            SelectedSchedule = null;
+            SelectedScheduleDetail = null;
+
+            return true;
         }
 
-        // 최신 데이터를 가져온 경우
         if (ex.Latest is not null)
         {
             MessageBox.Show(
-                "다른 곳에서 이미 수정된 일정입니다.\n최신 내용으로 갱신됩니다.",
+                "다른 곳에서 이미 수정된 일정입니다.\n최신 내용으로 자동 갱신합니다.",
                 "동시성 충돌",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
 
-            // 상세 화면은 최신 데이터로 동기화
             SelectedScheduleDetail = ex.Latest;
 
             return true;
         }
 
-        // 최신 데이터 없는 경우
         MessageBox.Show(
             "동시성 충돌이 발생했습니다.\n목록을 다시 불러옵니다.",
             "동시성 충돌",
