@@ -211,6 +211,8 @@ public partial class MainViewModel : ObservableObject
         var myVersion = ++_listRequestVersion;
         IsLoadingList = true;
 
+        var prevSelectedId = SelectedSchedule?.Id;
+
         try
         {
             var items = await _scheduleService.GetListByDateAsync(SelectedDate);
@@ -221,8 +223,25 @@ public partial class MainViewModel : ObservableObject
 
             RefreshSchedulesView();
 
-            SelectedSchedule = null;
-            SelectedScheduleDetail = null;
+            if (prevSelectedId is not null)
+            {
+                var restored = Schedules.FirstOrDefault(x => x.Id == prevSelectedId);
+
+                if (restored is not null)
+                {
+                    SelectedSchedule = restored;
+                }
+                else
+                {
+                    SelectedSchedule = null;
+                    SelectedScheduleDetail = null;
+                }
+            }
+            else
+            {
+                SelectedSchedule = null;
+                SelectedScheduleDetail = null;
+            }
         }
         finally
         {
@@ -317,16 +336,10 @@ public partial class MainViewModel : ObservableObject
                 // 충돌 처리 후에도 목록/상세가 최신 상태가 되도록 정리
                 await LoadSchedulesAsync();
 
-                if (SelectedSchedule is not null)
-                    SelectedScheduleDetail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
-
                 return;
             }
 
             await LoadSchedulesAsync();
-
-            if (SelectedSchedule is not null)
-                SelectedScheduleDetail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
         }
         finally
         {
@@ -405,9 +418,32 @@ public partial class MainViewModel : ObservableObject
             // 내 변경 덮어쓰기
             myEdited.RowVersion = ex.Latest.RowVersion;
 
-            await _scheduleService.UpdateAsync(myEdited);
+            try
+            {
+                await _scheduleService.UpdateAsync(myEdited);
+                MessageBox.Show("내 변경으로 덮어썼습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (ConcurrencyConflictException again)
+            {
+                MessageBox.Show(
+                    "저장 중 다시 충돌이 발생했습니다.\n최신 내용을 다시 확인해주세요.",
+                    "동시성 충돌",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
 
-            MessageBox.Show("내 변경으로 덮어썼습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+                // 최신 데이터로 화면 동기화
+                if (again.IsDeleted)
+                {
+                    await LoadSchedulesAsync();
+                    return;
+                }
+
+                if (again.Latest is not null)
+                    SelectedScheduleDetail = again.Latest;
+                else
+                    SelectedScheduleDetail = await _scheduleService.GetByIdAsync(myEdited.Id);
+            }
+
             return;
         }
 
@@ -433,9 +469,31 @@ public partial class MainViewModel : ObservableObject
 
         // 병합 결과 저장: 최신 RowVersion으로 맞추고 저장 재시도
         mergeVm.Result.RowVersion = ex.Latest.RowVersion;
-        await _scheduleService.UpdateAsync(mergeVm.Result);
 
-        MessageBox.Show("병합 후 저장했습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+        try
+        {
+            await _scheduleService.UpdateAsync(mergeVm.Result);
+            MessageBox.Show("병합 후 저장했습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (ConcurrencyConflictException again)
+        {
+            MessageBox.Show(
+                "병합 저장 중 다시 충돌이 발생했습니다.\n최신 내용을 다시 확인 후 저장해주세요.",
+                "동시성 충돌",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+
+            if (again.IsDeleted)
+            {
+                await LoadSchedulesAsync();
+                return;
+            }
+
+            if (again.Latest is not null)
+                SelectedScheduleDetail = again.Latest;
+            else
+                SelectedScheduleDetail = await _scheduleService.GetByIdAsync(myEdited.Id);
+        }
     }
 
     private static TimeSpan SnapTo30Minutes(TimeSpan time)
