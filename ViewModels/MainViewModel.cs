@@ -326,14 +326,12 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 await _scheduleService.UpdateAsync(vm.Result);
-                await LoadSchedulesAsync();
+                await LoadSchedulesAsync(); //목록 갱신
             }
             catch (ConcurrencyConflictException cex)
             {
-                // 충돌 처리 결과에 따라 목록 갱신 필요 판단
-                var shouldReload = await HandleConcurrencyConflictAsync(cex, vm.Result);
+                var shouldReload = HandleConcurrencyConflict(cex, vm.Result);
 
-                // 목록 갱신은 1번만 수행
                 if (shouldReload)
                     await LoadSchedulesAsync();
             }
@@ -366,127 +364,43 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private async Task<bool> HandleConcurrencyConflictAsync(ConcurrencyConflictException ex, ScheduleItem myEdited)
+    private bool HandleConcurrencyConflict(ConcurrencyConflictException ex, ScheduleItem myEdited)
     {
+        // 이미 삭제된 경우
         if (ex.IsDeleted)
         {
             MessageBox.Show(
-                ex.Message,
+                "해당 일정은 이미 삭제되었습니다.\n목록을 최신 상태로 갱신합니다.",
                 "동시성 충돌",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
 
-            return true;
+            return true; // 목록 갱신 필요
         }
 
-        if (ex.Latest is null)
+        // 최신 데이터를 가져온 경우
+        if (ex.Latest is not null)
         {
             MessageBox.Show(
-                "최신 데이터를 가져올 수 없습니다. 목록을 갱신합니다.",
+                "다른 곳에서 이미 수정된 일정입니다.\n최신 내용으로 갱신됩니다.",
                 "동시성 충돌",
                 MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                MessageBoxImage.Information);
 
-            return true;
-        }
-
-        // Yes: 최신으로 갱신, No: 내 변경 덮어쓰기(강제 저장), Cancel: 병합(최신 기준으로 다시 편집)
-        var result = MessageBox.Show(
-            "다른 곳에서 이미 수정된 일정입니다.\n\n" +
-            "예(Y): 최신 내용으로 갱신\n" +
-            "아니오(N): 내 변경으로 덮어쓰기\n" +
-            "취소(C): 병합(편집창에서 다시 조정)",
-            "동시성 충돌 처리",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Question);
-
-        // 최신 갱신
-        if (result == MessageBoxResult.Yes)
-        {
+            // 상세 화면은 최신 데이터로 동기화
             SelectedScheduleDetail = ex.Latest;
-            MessageBox.Show("최신 내용으로 갱신했습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
 
-            return false;
-        }
-
-        // 내 변경 덮어쓰기
-        if (result == MessageBoxResult.No)
-        {
-            myEdited.RowVersion = ex.Latest.RowVersion;
-
-            try
-            {
-                await _scheduleService.UpdateAsync(myEdited);
-                MessageBox.Show("내 변경으로 덮어썼습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
-                return true;
-            }
-            catch (ConcurrencyConflictException again)
-            {
-                MessageBox.Show(
-                    "저장 중 다시 충돌이 발생했습니다.\n최신 내용을 다시 확인해주세요.",
-                    "동시성 충돌",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-
-                if (again.IsDeleted)
-                    return true;
-
-                if (again.Latest is not null)
-                    SelectedScheduleDetail = again.Latest;
-                else
-                    SelectedScheduleDetail = await _scheduleService.GetByIdAsync(myEdited.Id);
-
-                return false;
-            }
-        }
-
-        // 병합
-        var mergeVm = new ScheduleEditViewModel(SelectedDate, ex.Latest);
-
-        mergeVm.Title = myEdited.Title;
-        mergeVm.Location = myEdited.Location;
-        mergeVm.Notes = myEdited.Notes;
-        mergeVm.StartDate = myEdited.StartAt.Date;
-        mergeVm.EndDate = myEdited.EndAt.Date;
-        mergeVm.StartTime = SnapTo30Minutes(myEdited.StartAt.TimeOfDay);
-        mergeVm.EndTime = SnapTo30Minutes(myEdited.EndAt.TimeOfDay);
-
-        var mergeWin = new ScheduleEditWindow
-        {
-            Owner = Application.Current?.MainWindow,
-            DataContext = mergeVm
-        };
-
-        var ok = mergeWin.ShowDialog();
-        if (ok != true || mergeVm.Result is null)
-            return false;
-
-        mergeVm.Result.RowVersion = ex.Latest.RowVersion;
-
-        try
-        {
-            await _scheduleService.UpdateAsync(mergeVm.Result);
-            MessageBox.Show("병합 후 저장했습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
             return true;
         }
-        catch (ConcurrencyConflictException again)
-        {
-            MessageBox.Show(
-                "병합 저장 중 다시 충돌이 발생했습니다.\n최신 내용을 다시 확인 후 저장해주세요.",
-                "동시성 충돌",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
 
-            if (again.IsDeleted)
-                return true;
+        // 최신 데이터 없는 경우
+        MessageBox.Show(
+            "동시성 충돌이 발생했습니다.\n목록을 다시 불러옵니다.",
+            "동시성 충돌",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
 
-            if (again.Latest is not null)
-                SelectedScheduleDetail = again.Latest;
-            else
-                SelectedScheduleDetail = await _scheduleService.GetByIdAsync(myEdited.Id);
-
-            return false;
-        }
+        return true;
     }
 
     private static TimeSpan SnapTo30Minutes(TimeSpan time)
