@@ -37,17 +37,23 @@ CRUD 구현과 비동기 UI 환경에서 발생할 수 있는 **레이스 컨디
 ```
 User
  ↓
-View (화면 렌더링, DataBinding & Command)
+View (XAML: DataBinding / Command Trigger)
  ↓
-ViewModel (상태 관리, Command 처리, 비동기 요청 흐름 제어)
+ViewModel (상태/Command, 비동기 UI 갱신 제어(requestVersion), Busy/Loading)
  ↓
-Service (비즈니스 로직)
+Service (업무 규칙, UTC↔KST 변환, 동시성 충돌 감지/예외)
  ↓
-Repository (ORM / Data Access)
+DbContextFactory (IDbContextFactory<AppDbContext>)
  ↓
-Database (MSSQL)
+EF Core (AppDbContext / Migrations)
+ ↓
+SQL Server (MySchedulerDb)
+
 
 ```
+
+- ViewModel과 Service를 중심으로 UI 상태와 업무 규칙을 분리하고, Factory 기반 데이터 접근으로 실행 안정성을 확보한 구조
+  - DI로 주입된 DbContextFactory를 통해, 필요할 때마다 DbContext 인스턴스를 새로 생성해 사용
 
 ---
 
