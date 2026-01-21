@@ -133,7 +133,6 @@
                     VerticalAlignment="Center">
             <Button Content="취소" Width="80" Margin="0,0,8,0" IsCancel="True"/>
             <Button Content="저장" Width="80" IsDefault="True"
-                    Command="{Binding SaveCommand}"
                     Click="OnSaveClick"/>
         </StackPanel>
     </Grid>

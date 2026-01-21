@@ -14,6 +14,9 @@ public partial class ScheduleEditWindow : Window
     {
         if (DataContext is not ScheduleEditViewModel vm) return;
 
+        if (vm.SaveCommand.CanExecute(null))
+            vm.SaveCommand.Execute(null);
+
         if (vm.ErrorMessage is null && vm.Result is not null)
         {
             DialogResult = true;
