@@ -19,31 +19,16 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Grid Margin="0,0,0,10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Grid.Column="0"
-                           Text="{Binding SelectedDate, StringFormat=yyyy-MM-dd 일정}"
-                           FontSize="18"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center"/>
-
-                <TextBlock Grid.Column="1"
-                           Text="{Binding CurrentTimeText}"
-                           FontSize="14"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Right"
-                           Margin="12,0,0,0"/>
-            </Grid>
+            <TextBlock Grid.Row="0"
+                       Text="{Binding SelectedDate, StringFormat={}{0:yyyy-MM-dd} 일정}"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,10"/>
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="380"/>
-                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -58,6 +43,7 @@
                                   Width="70"
                                   ItemsSource="{Binding SearchScopes}"
                                   SelectedItem="{Binding SelectedSearchScope}"
+                                  SelectedIndex="0"
                                   VerticalAlignment="Center"/>
 
                         <Button DockPanel.Dock="Right"
@@ -80,116 +66,110 @@
 
                     <ListBox Grid.Row="1"
                              ItemsSource="{Binding SchedulesView}"
-                             SelectedItem="{Binding SelectedSchedule, Mode=TwoWay}">
+                             SelectedItem="{Binding SelectedSchedule}"
+                             BorderThickness="1"
+                             BorderBrush="#B0B0B0"
+                             HorizontalContentAlignment="Stretch">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Padding="10" Margin="0,0,0,8" BorderThickness="1" CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Title}"
-                                                   FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Margin="0,4,0,0">
-                                            <Run Text="{Binding StartAt, StringFormat={}{0:HH:mm}}"/>
-                                            <Run Text=" - "/>
-                                            <Run Text="{Binding EndAt, StringFormat={}{0:HH:mm}}"/>
-                                        </TextBlock>
-                                    </StackPanel>
-                                </Border>
+                                <Grid Margin="6">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Text="{Binding Title}"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"/>
+
+                                    <TextBlock Grid.Row="1"
+                                               Margin="0,4,0,0"
+                                               Foreground="#666"
+                                               Text="{Binding StartAt, StringFormat={}{0:HH:mm}}"/>
+                                </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
                 </Grid>
 
-                <Border Grid.Column="2" Padding="14" BorderThickness="1" CornerRadius="12"
-                        DataContext="{Binding DataContext, ElementName=Root}">
+                <Border Grid.Column="1"
+        Margin="12,0,0,0"
+        BorderBrush="#B0B0B0"
+        BorderThickness="1"
+        Padding="14">
+
                     <Grid>
-                        <Grid>
-                            <Grid.Style>
-                                <Style TargetType="Grid">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedScheduleDetail}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Grid.Style>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
 
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0"
+                            Text="{Binding SelectedScheduleDetail.Title}"
+                            FontSize="18"
+                            FontWeight="Bold"
+                            Margin="0,0,0,10"/>
 
-                            <TextBlock Grid.Row="0"
-                                       Text="{Binding SelectedScheduleDetail.Title}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       TextTrimming="CharacterEllipsis"/>
-
-                            <TextBlock Grid.Row="1" Margin="0,10,0,0"
-                                       Text="{Binding SelectedScheduleDetail.TimeRangeText, StringFormat=🕒 {0}}"/>
-
-                            <TextBlock Grid.Row="2" Margin="0,10,0,0">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedScheduleDetail.Location}" Value="{x:Null}">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding SelectedScheduleDetail.Location}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                                <Run Text="📍 "/>
-                                <Run Text="{Binding SelectedScheduleDetail.Location}"/>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock FontFamily="Segoe MDL2 Assets"
+                                Text="&#xE823;"
+                                FontSize="14"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0"/>
+                            <TextBlock VerticalAlignment="Center">
+                                <Run Text="{Binding SelectedScheduleDetail.StartAt, StringFormat={}{0:yyyy-MM-dd tt h:mm}}"/>
+                                <Run Text=" - "/>
+                                <Run Text="{Binding SelectedScheduleDetail.EndAt, StringFormat={}{0:yyyy-MM-dd tt h:mm}}"/>
                             </TextBlock>
+                        </StackPanel>
 
-                            <TextBox Grid.Row="3" Margin="0,12,0,0"
-                                     Text="{Binding SelectedScheduleDetail.Notes}"
-                                     IsReadOnly="True"
-                                     TextWrapping="Wrap"
-                                     VerticalScrollBarVisibility="Auto">
-                                <TextBox.Style>
-                                    <Style TargetType="TextBox">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedScheduleDetail.Notes}" Value="{x:Null}">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding SelectedScheduleDetail.Notes}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBox.Style>
-                            </TextBox>
-                        </Grid>
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock FontFamily="Segoe MDL2 Assets"
+                                Text="&#xE707;"
+                                FontSize="14"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0"/>
+                            <TextBlock VerticalAlignment="Center"
+                                Text="{Binding SelectedScheduleDetail.Location}"/>
+                        </StackPanel>
 
-                        <Border>
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedScheduleDetail}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
+                        <Separator Grid.Row="3" Margin="0,0,0,10"/>
 
-                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <TextBlock Text="일정을 선택하면 상세 내용이 표시됩니다."
-                                           FontSize="14" Opacity="0.75" TextAlignment="Center"/>
-                            </StackPanel>
+                        <Border Grid.Row="4"
+                            BorderBrush="#B0B0B0"
+                            BorderThickness="1"
+                            Padding="10"
+                            CornerRadius="4">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <TextBlock Text="{Binding SelectedScheduleDetail.Notes}"
+                                    TextWrapping="Wrap"
+                                    Foreground="#444"/>
+                            </ScrollViewer>
                         </Border>
                     </Grid>
                 </Border>
+
+                <TextBlock Grid.Column="1"
+                           Margin="12,0,0,0"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="#777"
+                           FontSize="14">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedScheduleDetail}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                    일정을 선택하면 상세 내용이 표시됩니다.
+                </TextBlock>
             </Grid>
 
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
@@ -204,45 +184,29 @@
                 <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                            <Setter Property="Visibility" Value="Visible"/>
-                        </DataTrigger>
                         <DataTrigger Binding="{Binding IsLoadingList}" Value="True">
-                            <Setter Property="Visibility" Value="Visible"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsLoadingDetail}" Value="True">
                             <Setter Property="Visibility" Value="Visible"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </Grid.Style>
 
-            <Border Background="#66000000"/>
-
-            <Border Background="White" Padding="16" CornerRadius="12"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock FontSize="14" FontWeight="SemiBold" TextAlignment="Center">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="처리 중..."/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                                        <Setter Property="Text" Value="저장/삭제 처리 중..."/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsLoadingDetail}" Value="True">
-                                        <Setter Property="Text" Value="상세 불러오는 중..."/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsLoadingList}" Value="True">
-                                        <Setter Property="Text" Value="목록 불러오는 중..."/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-
-                    <ProgressBar Margin="0,12,0,0" Height="10" IsIndeterminate="True"/>
-                </StackPanel>
+            <Border Background="#80000000" CornerRadius="8">
+                <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="White"
+                    Padding="20"
+                    CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock FontSize="14"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Text="목록 불러오는 중..."/>
+                        <ProgressBar Margin="0,12,0,0"
+                             Height="10"
+                             IsIndeterminate="True"/>
+                    </StackPanel>
+                </Border>
             </Border>
         </Grid>
     </Grid>

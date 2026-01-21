@@ -15,15 +15,15 @@ public class ScheduleService : IScheduleService
 
     public async Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date)
     {
-        var startKst = date.Date;
-        var endKst = startKst.AddDays(1);
+        var start = date.Date;
+        var end = start.AddDays(1);
 
-        var startUtc = TimeUtil.KoreaToUtc(startKst);
-        var endUtc = TimeUtil.KoreaToUtc(endKst);
+        var startUtc = TimeUtil.KoreaToUtc(start);
+        var endUtc = TimeUtil.KoreaToUtc(end);
 
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var raw = await db.Schedules
+        var items = await db.Schedules
             .AsNoTracking()
             .Where(x => x.StartAt < endUtc && x.EndAt >= startUtc)
             .OrderBy(x => x.StartAt)
@@ -31,25 +31,23 @@ public class ScheduleService : IScheduleService
             {
                 Id = x.Id,
                 Title = x.Title,
-                StartAt = x.StartAt,
-                EndAt = x.EndAt,
-                Location = x.Location
+                Location = x.Location,
+                StartAt = TimeUtil.UtcToKorea(x.StartAt),
+                EndAt = TimeUtil.UtcToKorea(x.EndAt)
             })
             .ToListAsync();
 
-        foreach (var it in raw)
-        {
-            it.StartAt = TimeUtil.UtcToKorea(it.StartAt);
-            it.EndAt = TimeUtil.UtcToKorea(it.EndAt);
-        }
-
-        return raw;
+        return items;
     }
 
     public async Task<ScheduleItem?> GetByIdAsync(int id)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-        var item = await db.Schedules.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+
+        var item = await db.Schedules
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id);
+
         if (item is null) return null;
 
         item.StartAt = TimeUtil.UtcToKorea(item.StartAt);
@@ -60,17 +58,25 @@ public class ScheduleService : IScheduleService
 
     public async Task<ScheduleItem> AddAsync(ScheduleItem item)
     {
-        item.StartAt = TimeUtil.KoreaToUtc(item.StartAt);
-        item.EndAt = TimeUtil.KoreaToUtc(item.EndAt);
+        var utcItem = new ScheduleItem
+        {
+            Title = item.Title,
+            Location = item.Location,
+            Notes = item.Notes,
+            StartAt = TimeUtil.KoreaToUtc(item.StartAt),
+            EndAt = TimeUtil.KoreaToUtc(item.EndAt),
+            Priority = item.Priority,
+            IsAllDay = item.IsAllDay
+        };
 
         await using var db = await _dbFactory.CreateDbContextAsync();
-        db.Schedules.Add(item);
+        db.Schedules.Add(utcItem);
         await db.SaveChangesAsync();
 
-        item.StartAt = TimeUtil.UtcToKorea(item.StartAt);
-        item.EndAt = TimeUtil.UtcToKorea(item.EndAt);
+        utcItem.StartAt = TimeUtil.UtcToKorea(utcItem.StartAt);
+        utcItem.EndAt = TimeUtil.UtcToKorea(utcItem.EndAt);
 
-        return item;
+        return utcItem;
     }
 
     public async Task UpdateAsync(ScheduleItem item)
@@ -83,6 +89,9 @@ public class ScheduleService : IScheduleService
             Notes = item.Notes,
             StartAt = TimeUtil.KoreaToUtc(item.StartAt),
             EndAt = TimeUtil.KoreaToUtc(item.EndAt),
+            Priority = item.Priority,
+            IsAllDay = item.IsAllDay,
+
             RowVersion = item.RowVersion
         };
 
@@ -98,13 +107,10 @@ public class ScheduleService : IScheduleService
             var entry = ex.Entries.Single();
             var dbValues = await entry.GetDatabaseValuesAsync();
 
-            // 이미 삭제된 경우
             if (dbValues is null)
                 throw new ConcurrencyConflictException(latest: null, isDeleted: true);
 
-            // 수정 충돌인 경우 최신 데이터 조회 후 전달
             var latestUtc = (ScheduleItem)dbValues.ToObject();
-
             latestUtc.StartAt = TimeUtil.UtcToKorea(latestUtc.StartAt);
             latestUtc.EndAt = TimeUtil.UtcToKorea(latestUtc.EndAt);
 
@@ -112,13 +118,41 @@ public class ScheduleService : IScheduleService
         }
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, byte[] rowVersion)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var target = await db.Schedules.FindAsync(id);
-        if (target is null) return;
+        if (rowVersion is null || rowVersion.Length == 0)
+            throw new ArgumentException("rowVersion이 비어있습니다.", nameof(rowVersion));
 
-        db.Schedules.Remove(target);
-        await db.SaveChangesAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var stub = new ScheduleItem
+        {
+            Id = id,
+            RowVersion = rowVersion
+        };
+
+        db.Attach(stub);
+        db.Entry(stub).Property(x => x.RowVersion).OriginalValue = rowVersion;
+
+        db.Schedules.Remove(stub);
+
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            var entry = ex.Entries.Single();
+            var dbValues = await entry.GetDatabaseValuesAsync();
+
+            if (dbValues is null)
+                throw new ConcurrencyConflictException(latest: null, isDeleted: true);
+
+            var latestUtc = (ScheduleItem)dbValues.ToObject();
+            latestUtc.StartAt = TimeUtil.UtcToKorea(latestUtc.StartAt);
+            latestUtc.EndAt = TimeUtil.UtcToKorea(latestUtc.EndAt);
+
+            throw new ConcurrencyConflictException(latest: latestUtc, isDeleted: false);
+        }
     }
 }

@@ -9,5 +9,5 @@ public interface IScheduleService
 
     Task<ScheduleItem> AddAsync(ScheduleItem item);
     Task UpdateAsync(ScheduleItem item);
-    Task DeleteAsync(int id);
+    Task DeleteAsync(int id, byte[] rowVersion);
 }
