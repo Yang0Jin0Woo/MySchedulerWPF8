@@ -2,12 +2,10 @@
 using CommunityToolkit.Mvvm.Input;
 using MyScheduler.Models;
 using MyScheduler.Services;
-using MyScheduler.Utils;
 using MyScheduler.Views;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -27,7 +25,8 @@ public partial class MainViewModel : ObservableObject
         _selectedSearchScope = SearchScopes.First();
 
         SchedulesView = CollectionViewSource.GetDefaultView(Schedules);
-        SchedulesView.SortDescriptions.Add(new SortDescription(nameof(ScheduleListItem.StartAt), ListSortDirection.Ascending));
+        SchedulesView.SortDescriptions.Add(
+            new SortDescription(nameof(ScheduleListItem.StartAt), ListSortDirection.Ascending));
         SchedulesView.Filter = FilterSchedule;
 
         SelectedDate = DateTime.Today;
@@ -39,10 +38,8 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<ScheduleListItem> Schedules { get; } = new();
     public ICollectionView SchedulesView { get; }
 
-    public ObservableCollection<string> SearchScopes { get; } = new()
-    {
-        "전체", "제목", "장소"
-    };
+    public ObservableCollection<string> SearchScopes { get; } =
+        new() { "전체", "제목", "장소" };
 
     private string _selectedSearchScope;
     public string SelectedSearchScope
@@ -66,7 +63,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private DateTime _selectedDate = DateTime.Today;
+    private DateTime _selectedDate;
     public DateTime SelectedDate
     {
         get => _selectedDate;
@@ -86,8 +83,8 @@ public partial class MainViewModel : ObservableObject
             if (SetProperty(ref _selectedSchedule, value))
             {
                 _ = LoadSelectedDetailAsync();
-                DeleteScheduleCommand.NotifyCanExecuteChanged();
                 EditScheduleCommand.NotifyCanExecuteChanged();
+                DeleteScheduleCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -100,8 +97,8 @@ public partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedScheduleDetail, value))
             {
-                DeleteScheduleCommand.NotifyCanExecuteChanged();
                 EditScheduleCommand.NotifyCanExecuteChanged();
+                DeleteScheduleCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -110,7 +107,14 @@ public partial class MainViewModel : ObservableObject
     public bool IsLoadingList
     {
         get => _isLoadingList;
-        private set => SetProperty(ref _isLoadingList, value);
+        private set
+        {
+            if (SetProperty(ref _isLoadingList, value))
+            {
+                EditScheduleCommand.NotifyCanExecuteChanged();
+                DeleteScheduleCommand.NotifyCanExecuteChanged();
+            }
+        }
     }
 
     private bool _isBusy;
@@ -121,22 +125,23 @@ public partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _isBusy, value))
             {
-                DeleteScheduleCommand.NotifyCanExecuteChanged();
                 EditScheduleCommand.NotifyCanExecuteChanged();
+                DeleteScheduleCommand.NotifyCanExecuteChanged();
             }
         }
     }
 
-    private int _listRequestVersion = 0;
-    private int _detailRequestVersion = 0;
+    private int _listRequestVersion;
+    private int _detailRequestVersion;
 
-    private bool CanEditOrDelete() => !IsBusy && SelectedScheduleDetail is not null;
+    private bool CanEditOrDelete()
+        => !IsBusy && !IsLoadingList && SelectedScheduleDetail is not null;
 
     private bool FilterSchedule(object obj)
     {
         if (obj is not ScheduleListItem item) return false;
 
-        var keyword = (SearchText ?? "").Trim();
+        var keyword = SearchText?.Trim();
         if (string.IsNullOrWhiteSpace(keyword)) return true;
 
         bool Contains(string? s) =>
@@ -155,7 +160,8 @@ public partial class MainViewModel : ObservableObject
     {
         SchedulesView.Refresh();
 
-        if (SelectedSchedule is not null && !SchedulesView.Cast<object>().Contains(SelectedSchedule))
+        if (SelectedSchedule is not null &&
+            !SchedulesView.Cast<object>().Contains(SelectedSchedule))
         {
             SelectedSchedule = null;
             SelectedScheduleDetail = null;
@@ -175,57 +181,57 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadSchedulesAsync()
     {
-        var myVersion = ++_listRequestVersion;
+        var version = ++_listRequestVersion;
         IsLoadingList = true;
 
-        var prevSelectedId = SelectedSchedule?.Id;
+        var prevId = SelectedSchedule?.Id;
 
         try
         {
             var items = await _scheduleService.GetListByDateAsync(SelectedDate);
-            if (myVersion != _listRequestVersion) return;
+            if (version != _listRequestVersion) return;
 
             Schedules.Clear();
-            foreach (var it in items) Schedules.Add(it);
+            foreach (var item in items)
+                Schedules.Add(item);
 
             RefreshSchedulesView();
 
-            if (prevSelectedId is not null)
+            if (prevId is not null)
             {
-                var restored = Schedules.FirstOrDefault(x => x.Id == prevSelectedId);
+                var restored = Schedules.FirstOrDefault(x => x.Id == prevId);
                 if (restored is not null)
                     SelectedSchedule = restored;
             }
         }
         finally
         {
-            if (myVersion == _listRequestVersion)
+            if (version == _listRequestVersion)
                 IsLoadingList = false;
         }
     }
 
     private async Task LoadSelectedDetailAsync()
     {
-        var selected = SelectedSchedule;
-        if (selected is null)
+        if (SelectedSchedule is null)
         {
             SelectedScheduleDetail = null;
             return;
         }
 
-        var myVersion = ++_detailRequestVersion;
+        var version = ++_detailRequestVersion;
         IsBusy = true;
 
         try
         {
-            var detail = await _scheduleService.GetByIdAsync(selected.Id);
-            if (myVersion != _detailRequestVersion) return;
+            var detail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
+            if (version != _detailRequestVersion) return;
 
             SelectedScheduleDetail = detail;
         }
         finally
         {
-            if (myVersion == _detailRequestVersion)
+            if (version == _detailRequestVersion)
                 IsBusy = false;
         }
     }
@@ -233,6 +239,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task AddScheduleAsync()
     {
+        if (IsBusy || IsLoadingList) return;
+
         IsBusy = true;
 
         try
@@ -240,20 +248,17 @@ public partial class MainViewModel : ObservableObject
             var vm = new ScheduleEditViewModel(SelectedDate);
             var win = new ScheduleEditWindow
             {
-                Owner = Application.Current?.MainWindow,
+                Owner = Application.Current.MainWindow,
                 DataContext = vm
             };
 
-            var ok = win.ShowDialog();
-            if (ok != true || vm.Result is null) return;
+            if (win.ShowDialog() != true || vm.Result is null)
+                return;
 
             var created = await _scheduleService.AddAsync(vm.Result);
-
             await LoadSchedulesAsync();
 
-            var justAdded = Schedules.FirstOrDefault(x => x.Id == created.Id);
-            if (justAdded is not null)
-                SelectedSchedule = justAdded;
+            SelectedSchedule = Schedules.FirstOrDefault(x => x.Id == created.Id);
         }
         finally
         {
@@ -273,24 +278,19 @@ public partial class MainViewModel : ObservableObject
             var vm = new ScheduleEditViewModel(SelectedDate, SelectedScheduleDetail);
             var win = new ScheduleEditWindow
             {
-                Owner = Application.Current?.MainWindow,
+                Owner = Application.Current.MainWindow,
                 DataContext = vm
             };
 
-            var ok = win.ShowDialog();
-            if (ok != true || vm.Result is null) return;
-
-            try
-            {
-                await _scheduleService.UpdateAsync(vm.Result);
-            }
-            catch (ConcurrencyConflictException ex)
-            {
-                _ = HandleConcurrencyConflict(ex);
+            if (win.ShowDialog() != true || vm.Result is null)
                 return;
-            }
 
+            await _scheduleService.UpdateAsync(vm.Result);
             await LoadSchedulesAsync();
+        }
+        catch (ConcurrencyConflictException ex)
+        {
+            HandleConcurrencyConflict(ex);
         }
         finally
         {
@@ -305,13 +305,12 @@ public partial class MainViewModel : ObservableObject
 
         var id = SelectedScheduleDetail.Id;
 
-        var result = MessageBox.Show(
-            "정말 삭제하시겠습니까?",
-            "삭제 확인",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (result != MessageBoxResult.Yes) return;
+        if (MessageBox.Show(
+                "정말 삭제하시겠습니까?",
+                "삭제 확인",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
 
         IsBusy = true;
 
@@ -319,10 +318,8 @@ public partial class MainViewModel : ObservableObject
         {
             var latest = await _scheduleService.GetByIdAsync(id);
 
-            if (latest is null || latest.RowVersion is null || latest.RowVersion.Length == 0)
-            {
-                throw new ConcurrencyConflictException(latest: null, isDeleted: true);
-            }
+            if (latest?.RowVersion is null || latest.RowVersion.Length == 0)
+                throw new ConcurrencyConflictException(null, true);
 
             await _scheduleService.DeleteAsync(latest.Id, latest.RowVersion);
 
@@ -341,7 +338,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool HandleConcurrencyConflict(ConcurrencyConflictException ex)
+    private void HandleConcurrencyConflict(ConcurrencyConflictException ex)
     {
         if (ex.IsDeleted)
         {
@@ -353,9 +350,8 @@ public partial class MainViewModel : ObservableObject
 
             SelectedSchedule = null;
             SelectedScheduleDetail = null;
-
             _ = LoadSchedulesAsync();
-            return true;
+            return;
         }
 
         if (ex.Latest is not null)
@@ -368,17 +364,7 @@ public partial class MainViewModel : ObservableObject
 
             SelectedScheduleDetail = ex.Latest;
             _ = LoadSchedulesAsync();
-            return true;
         }
-
-        MessageBox.Show(
-            "동시성 충돌이 발생했습니다.\n목록을 최신 상태로 갱신합니다.",
-            "동시성 충돌",
-            MessageBoxButton.OK,
-            MessageBoxImage.Warning);
-
-        _ = LoadSchedulesAsync();
-        return true;
     }
 
     private readonly DispatcherTimer _clockTimer = new();
@@ -398,12 +384,4 @@ public partial class MainViewModel : ObservableObject
     }
 
     public void StopClock() => _clockTimer.Stop();
-
-    private static TimeSpan SnapTo30Minutes(TimeSpan time)
-    {
-        var totalMinutes = (int)Math.Round(time.TotalMinutes / 30.0) * 30;
-        totalMinutes %= (24 * 60);
-        if (totalMinutes < 0) totalMinutes += (24 * 60);
-        return TimeSpan.FromMinutes(totalMinutes);
-    }
 }

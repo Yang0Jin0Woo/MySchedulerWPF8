@@ -5,185 +5,216 @@
         Title="MyScheduler" Width="1100" Height="650">
 
     <Grid Margin="12">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="260"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        <Grid x:Name="ContentLayer">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="IsEnabled" Value="True"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter Property="IsEnabled" Value="False"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsLoadingList}" Value="True">
+                            <Setter Property="IsEnabled" Value="False"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
 
-        <Calendar SelectedDate="{Binding SelectedDate}" />
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-        <Grid Grid.Column="1" Margin="12,0,0,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+            <Calendar SelectedDate="{Binding SelectedDate}" />
 
-            <TextBlock Grid.Row="0"
-                       Text="{Binding SelectedDate, StringFormat={}{0:yyyy-MM-dd} 일정}"
-                       FontSize="20"
-                       FontWeight="Bold"
-                       HorizontalAlignment="Center"
-                       Margin="0,0,0,10"/>
+            <Grid Grid.Column="1" Margin="12,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-            <Grid Grid.Row="1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="380"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Row="0"
+                           Text="{Binding SelectedDate, StringFormat={}{0:yyyy-MM-dd} 일정}"
+                           FontSize="20"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,10"/>
 
-                <Grid Grid.Column="0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="380"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                    <DockPanel LastChildFill="True" Grid.Row="0" Margin="0,0,0,8">
-                        <ComboBox DockPanel.Dock="Left"
-                                  Width="70"
-                                  ItemsSource="{Binding SearchScopes}"
-                                  SelectedItem="{Binding SelectedSearchScope}"
-                                  SelectedIndex="0"
-                                  VerticalAlignment="Center"/>
-
-                        <Button DockPanel.Dock="Right"
-                                Content="초기화"
-                                Margin="6,0,0,0"
-                                Command="{Binding ClearSearchCommand}"
-                                VerticalAlignment="Center"/>
-
-                        <Button DockPanel.Dock="Right"
-                                Content="검색"
-                                Margin="6,0,0,0"
-                                Command="{Binding ApplySearchCommand}"
-                                VerticalAlignment="Center"/>
-
-                        <TextBox Margin="8,0,8,0"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 VerticalAlignment="Center"
-                                 ToolTip="검색어를 입력하세요"/>
-                    </DockPanel>
-
-                    <ListBox Grid.Row="1"
-                             ItemsSource="{Binding SchedulesView}"
-                             SelectedItem="{Binding SelectedSchedule}"
-                             BorderThickness="1"
-                             BorderBrush="#B0B0B0"
-                             HorizontalContentAlignment="Stretch">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="6">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock Text="{Binding Title}"
-                                               FontWeight="SemiBold"
-                                               FontSize="13"/>
-
-                                    <TextBlock Grid.Row="1"
-                                               Margin="0,4,0,0"
-                                               Foreground="#666"
-                                               Text="{Binding StartAt, StringFormat={}{0:HH:mm}}"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Grid>
-
-                <Border Grid.Column="1"
-        Margin="12,0,0,0"
-        BorderBrush="#B0B0B0"
-        BorderThickness="1"
-        Padding="14">
-
-                    <Grid>
+                    <Grid Grid.Column="0">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0"
-                            Text="{Binding SelectedScheduleDetail.Title}"
-                            FontSize="18"
-                            FontWeight="Bold"
-                            Margin="0,0,0,10"/>
+                        <DockPanel LastChildFill="True" Grid.Row="0" Margin="0,0,0,8">
+                            <ComboBox DockPanel.Dock="Left"
+                                      Width="70"
+                                      ItemsSource="{Binding SearchScopes}"
+                                      SelectedItem="{Binding SelectedSearchScope}"
+                                      SelectedIndex="0"
+                                      VerticalAlignment="Center"/>
 
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
-                            <TextBlock FontFamily="Segoe MDL2 Assets"
-                                Text="&#xE823;"
-                                FontSize="14"
-                                VerticalAlignment="Center"
-                                Margin="0,0,8,0"/>
-                            <TextBlock VerticalAlignment="Center">
-                                <Run Text="{Binding SelectedScheduleDetail.StartAt, StringFormat={}{0:yyyy-MM-dd tt h:mm}}"/>
-                                <Run Text=" - "/>
-                                <Run Text="{Binding SelectedScheduleDetail.EndAt, StringFormat={}{0:yyyy-MM-dd tt h:mm}}"/>
-                            </TextBlock>
-                        </StackPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Content="초기화"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding ClearSearchCommand}"
+                                    VerticalAlignment="Center"/>
 
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
-                            <TextBlock FontFamily="Segoe MDL2 Assets"
-                                Text="&#xE707;"
-                                FontSize="14"
-                                VerticalAlignment="Center"
-                                Margin="0,0,8,0"/>
-                            <TextBlock VerticalAlignment="Center"
-                                Text="{Binding SelectedScheduleDetail.Location}"/>
-                        </StackPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Content="검색"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding ApplySearchCommand}"
+                                    VerticalAlignment="Center"/>
 
-                        <Separator Grid.Row="3" Margin="0,0,0,10"/>
+                            <TextBox Margin="8,0,8,0"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     VerticalAlignment="Center"
+                                     ToolTip="검색어를 입력하세요"/>
+                        </DockPanel>
 
-                        <Border Grid.Row="4"
-                            BorderBrush="#B0B0B0"
-                            BorderThickness="1"
-                            Padding="10"
-                            CornerRadius="4">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <TextBlock Text="{Binding SelectedScheduleDetail.Notes}"
-                                    TextWrapping="Wrap"
-                                    Foreground="#444"/>
-                            </ScrollViewer>
-                        </Border>
+                        <ListBox Grid.Row="1"
+                                 ItemsSource="{Binding SchedulesView}"
+                                 SelectedItem="{Binding SelectedSchedule}"
+                                 BorderThickness="1"
+                                 BorderBrush="#B0B0B0"
+                                 HorizontalContentAlignment="Stretch">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="6">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"/>
+
+                                        <TextBlock Grid.Row="1"
+                                                   Margin="0,4,0,0"
+                                                   Foreground="#666"
+                                                   Text="{Binding StartAt, StringFormat={}{0:HH:mm}}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </Grid>
-                </Border>
 
-                <TextBlock Grid.Column="1"
-                           Margin="12,0,0,0"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Foreground="#777"
-                           FontSize="14">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedScheduleDetail}" Value="{x:Null}">
+                    <Grid Grid.Column="1" Margin="12,0,0,0">
+                        <Border BorderBrush="#B0B0B0"
+                                BorderThickness="1"
+                                Padding="14">
+                            <Border.Style>
+                                <Style TargetType="Border">
                                     <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                    일정을 선택하면 상세 내용이 표시됩니다.
-                </TextBlock>
-            </Grid>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedScheduleDetail}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
 
-            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                <Button Content="추가" Command="{Binding AddScheduleCommand}" Margin="0,0,8,0"/>
-                <Button Content="수정" Command="{Binding EditScheduleCommand}" Margin="0,0,8,0"/>
-                <Button Content="삭제" Command="{Binding DeleteScheduleCommand}"/>
-            </StackPanel>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Text="{Binding SelectedScheduleDetail.Title}"
+                                           FontSize="18"
+                                           FontWeight="Bold"
+                                           Margin="0,0,0,10"/>
+
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
+                                    <TextBlock FontFamily="Segoe MDL2 Assets"
+                                               Text="&#xE823;"
+                                               FontSize="14"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <TextBlock VerticalAlignment="Center">
+                                        <Run Text="{Binding SelectedScheduleDetail.StartAt,
+                                                            StringFormat={}{0:yyyy-MM-dd tt h:mm},
+                                                            ConverterCulture=ko-KR}"/>
+                                        <Run Text=" - "/>
+                                        <Run Text="{Binding SelectedScheduleDetail.EndAt,
+                                                            StringFormat={}{0:yyyy-MM-dd tt h:mm},
+                                                            ConverterCulture=ko-KR}"/>
+                                    </TextBlock>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock FontFamily="Segoe MDL2 Assets"
+                                               Text="&#xE707;"
+                                               FontSize="14"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <TextBlock VerticalAlignment="Center"
+                                               Text="{Binding SelectedScheduleDetail.Location}"/>
+                                </StackPanel>
+
+                                <Separator Grid.Row="3" Margin="0,0,0,10"/>
+
+                                <Border Grid.Row="4"
+                                        BorderBrush="#B0B0B0"
+                                        BorderThickness="1"
+                                        Padding="10"
+                                        CornerRadius="4">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <TextBlock Text="{Binding SelectedScheduleDetail.Notes}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="#444"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="#777"
+                                   FontSize="14">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedScheduleDetail}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                            일정을 선택하면 상세 내용이 표시됩니다.
+                        </TextBlock>
+                    </Grid>
+                </Grid>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                    <Button Content="추가" Command="{Binding AddScheduleCommand}" Margin="0,0,8,0"/>
+                    <Button Content="수정" Command="{Binding EditScheduleCommand}" Margin="0,0,8,0"/>
+                    <Button Content="삭제" Command="{Binding DeleteScheduleCommand}"/>
+                </StackPanel>
+            </Grid>
         </Grid>
 
-        <Grid Grid.ColumnSpan="2">
+        <Grid>
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed"/>
                     <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding IsLoadingList}" Value="True">
                             <Setter Property="Visibility" Value="Visible"/>
                         </DataTrigger>
@@ -193,18 +224,32 @@
 
             <Border Background="#80000000" CornerRadius="8">
                 <Border HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Background="White"
-                    Padding="20"
-                    CornerRadius="8">
+                        VerticalAlignment="Center"
+                        Background="White"
+                        Padding="20"
+                        CornerRadius="8">
                     <StackPanel>
                         <TextBlock FontSize="14"
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center"
-                           Text="목록 불러오는 중..."/>
+                                   FontWeight="Bold"
+                                   HorizontalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="처리 중..."/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                            <Setter Property="Text" Value="저장/삭제 처리 중..."/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsLoadingList}" Value="True">
+                                            <Setter Property="Text" Value="목록 불러오는 중..."/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
                         <ProgressBar Margin="0,12,0,0"
-                             Height="10"
-                             IsIndeterminate="True"/>
+                                     Height="10"
+                                     IsIndeterminate="True"/>
                     </StackPanel>
                 </Border>
             </Border>
