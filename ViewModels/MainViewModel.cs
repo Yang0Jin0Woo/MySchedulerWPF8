@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using MyScheduler.Models;
 using MyScheduler.Services;
+using MyScheduler.Utils;
 using MyScheduler.Views;
 using System;
 using System.Collections.ObjectModel;
@@ -72,6 +73,13 @@ public partial class MainViewModel : ObservableObject
             if (SetProperty(ref _selectedDate, value))
                 _ = LoadSchedulesAsync();
         }
+    }
+
+    private DateTime _nowKst;
+    public DateTime NowKst
+    {
+        get => _nowKst;
+        private set => SetProperty(ref _nowKst, value);
     }
 
     private ScheduleListItem? _selectedSchedule;
@@ -368,18 +376,16 @@ public partial class MainViewModel : ObservableObject
     }
 
     private readonly DispatcherTimer _clockTimer = new();
-    private DateTime _now = DateTime.Now;
-
-    public DateTime Now
-    {
-        get => _now;
-        private set => SetProperty(ref _now, value);
-    }
 
     private void StartClock()
     {
         _clockTimer.Interval = TimeSpan.FromSeconds(1);
-        _clockTimer.Tick += (_, __) => Now = DateTime.Now;
+        _clockTimer.Tick += (_, __) =>
+        {
+            NowKst = TimeUtil.UtcToKorea(DateTime.UtcNow);
+        };
+
+        NowKst = TimeUtil.UtcToKorea(DateTime.UtcNow);
         _clockTimer.Start();
     }
 
