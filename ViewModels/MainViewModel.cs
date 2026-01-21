@@ -187,10 +187,12 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task LoadSchedulesAsync()
+    private async Task LoadSchedulesAsync(bool showLoading = true)
     {
         var version = ++_listRequestVersion;
-        IsLoadingList = true;
+
+        if (showLoading)
+            IsLoadingList = true;
 
         var prevId = SelectedSchedule?.Id;
 
@@ -214,7 +216,7 @@ public partial class MainViewModel : ObservableObject
         }
         finally
         {
-            if (version == _listRequestVersion)
+            if (showLoading && version == _listRequestVersion)
                 IsLoadingList = false;
         }
     }
@@ -264,7 +266,7 @@ public partial class MainViewModel : ObservableObject
                 return;
 
             var created = await _scheduleService.AddAsync(vm.Result);
-            await LoadSchedulesAsync();
+            await LoadSchedulesAsync(false);
 
             SelectedSchedule = Schedules.FirstOrDefault(x => x.Id == created.Id);
         }
@@ -294,7 +296,7 @@ public partial class MainViewModel : ObservableObject
                 return;
 
             await _scheduleService.UpdateAsync(vm.Result);
-            await LoadSchedulesAsync();
+            await LoadSchedulesAsync(false);
         }
         catch (ConcurrencyConflictException ex)
         {
@@ -334,7 +336,7 @@ public partial class MainViewModel : ObservableObject
             SelectedSchedule = null;
             SelectedScheduleDetail = null;
 
-            await LoadSchedulesAsync();
+            await LoadSchedulesAsync(false);
         }
         catch (ConcurrencyConflictException ex)
         {
