@@ -214,6 +214,15 @@ public partial class MainViewModel : ObservableObject
                     SelectedSchedule = restored;
             }
         }
+        catch (Exception ex)
+        {
+            if (version == _listRequestVersion)
+            {
+                ShowUserError(
+                    "목록 조회 실패",
+                    BuildDbHint("일정 목록을 불러오는 작업") + $"\n\n오류: {ex.Message}");
+            }
+        }
         finally
         {
             if (showLoading && version == _listRequestVersion)
@@ -238,6 +247,15 @@ public partial class MainViewModel : ObservableObject
             if (version != _detailRequestVersion) return;
 
             SelectedScheduleDetail = detail;
+        }
+        catch (Exception ex)
+        {
+            if (version == _detailRequestVersion)
+            {
+                ShowUserError(
+                    "상세 조회 실패",
+                    BuildDbHint("일정 상세를 불러오는 작업") + $"\n\n오류: {ex.Message}");
+            }
         }
         finally
         {
@@ -270,6 +288,12 @@ public partial class MainViewModel : ObservableObject
 
             SelectedSchedule = Schedules.FirstOrDefault(x => x.Id == created.Id);
         }
+        catch (Exception ex)
+        {
+            ShowUserError(
+                "일정 추가 실패",
+                BuildDbHint("일정을 추가하는 작업") + $"\n\n오류: {ex.Message}");
+        }
         finally
         {
             IsBusy = false;
@@ -301,6 +325,12 @@ public partial class MainViewModel : ObservableObject
         catch (ConcurrencyConflictException ex)
         {
             HandleConcurrencyConflict(ex);
+        }
+        catch (Exception ex)
+        {
+            ShowUserError(
+                "일정 수정 실패",
+                BuildDbHint("일정을 수정하는 작업") + $"\n\n오류: {ex.Message}");
         }
         finally
         {
@@ -342,6 +372,12 @@ public partial class MainViewModel : ObservableObject
         {
             HandleConcurrencyConflict(ex);
         }
+        catch (Exception ex)
+        {
+            ShowUserError(
+                "일정 삭제 실패",
+                BuildDbHint("일정을 삭제하는 작업") + $"\n\n오류: {ex.Message}");
+        }
         finally
         {
             IsBusy = false;
@@ -376,6 +412,30 @@ public partial class MainViewModel : ObservableObject
             _ = LoadSchedulesAsync();
         }
     }
+
+    private static void ShowUserError(string title, string message)
+    {
+        MessageBox.Show(
+            message,
+            title,
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+    }
+
+    private static string BuildDbHint(string action)
+    {
+        return
+            $"{action} 중 문제가 발생했습니다.\n\n" +
+            "확인해볼 수 있는 항목:\n" +
+            "1) SQL Server가 실행 중인지\n" +
+            "2) appsettings.json 연결 문자열이 올바른지\n" +
+            "3) 권한 문제 여부\n\n" +
+            "조치 방법:\n" +
+            "- Windows 서비스에서 'SQL Server(SQLEXPRESS)' 실행 확인\n" +
+            "- SSMS로 localhost\\SQLEXPRESS 접속 테스트\n" +
+            "- appsettings.json의 ConnectionStrings:Default 확인";
+    }
+
 
     private readonly DispatcherTimer _clockTimer = new();
 
