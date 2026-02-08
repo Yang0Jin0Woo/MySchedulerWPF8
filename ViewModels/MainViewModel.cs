@@ -34,7 +34,7 @@ public partial class MainViewModel : ObservableObject
             new SortDescription(nameof(ScheduleListItem.StartAt), ListSortDirection.Ascending));
         SchedulesView.Filter = FilterSchedule;
 
-        SelectedDate = DateTime.Today;
+        SelectedDate = TimeUtil.GetKoreaNow().Date;
 
         StartClock();
         _ = LoadSchedulesAsync();
