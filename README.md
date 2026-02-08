@@ -54,6 +54,10 @@ SQL Server (MySchedulerDb)
 
 - ViewModel과 Service를 중심으로 UI 상태와 업무 규칙을 분리하고 DbContextFactory 기반 데이터 접근을 통해 WPF 환경에 적합한 실행 안정성을 확보한 구조
 - DbContextFactory를 사용하여 필요할 때마다 DbContext 인스턴스를 생성/폐기하며 데이터 접근을 관리
+	- 안전한 데이터 접근을 위해 IDbContextFactory<AppDbContext> 사용
+	- 모든 작업은 CreateDbContext()로 새 DbContext를 생성하고 즉시 폐기
+	- DbContext는 비동기 자원 해제가 가능하기 때문에 await using을 사용하면 DB 연결/리소스 해제를 안전하게 기다린 뒤 다음 코드로 넘어감
+		- Dispose가 끝나기 전에 흐름이 종료되는 것을 방지하여 자원 효율 좋음
 
 ---
 

@@ -48,7 +48,7 @@ public partial class App : Application
             using (var scope = AppHost.Services.CreateScope())
             {
                 var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
-                await using var db = await factory.CreateDbContextAsync();
+                await using var db = factory.CreateDbContext();
 
                 var pending = await db.Database.GetPendingMigrationsAsync();
                 if (pending.Any())
@@ -101,3 +101,5 @@ public partial class App : Application
         }
     }
 }
+
+

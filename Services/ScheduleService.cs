@@ -21,7 +21,7 @@ public class ScheduleService : IScheduleService
         var startUtc = TimeUtil.KoreaToUtc(start);
         var endUtc = TimeUtil.KoreaToUtc(end);
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = _dbFactory.CreateDbContext();
 
         var items = await db.Schedules
             .AsNoTracking()
@@ -42,7 +42,7 @@ public class ScheduleService : IScheduleService
 
     public async Task<ScheduleItem?> GetByIdAsync(int id)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = _dbFactory.CreateDbContext();
 
         var item = await db.Schedules
             .AsNoTracking()
@@ -69,7 +69,7 @@ public class ScheduleService : IScheduleService
             IsAllDay = item.IsAllDay
         };
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = _dbFactory.CreateDbContext();
         db.Schedules.Add(utcItem);
         await db.SaveChangesAsync();
 
@@ -95,7 +95,7 @@ public class ScheduleService : IScheduleService
             RowVersion = item.RowVersion
         };
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = _dbFactory.CreateDbContext();
         db.Schedules.Update(utcItem);
 
         try
@@ -123,7 +123,7 @@ public class ScheduleService : IScheduleService
         if (rowVersion is null || rowVersion.Length == 0)
             throw new ArgumentException("rowVersion이 비어있습니다.", nameof(rowVersion));
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
+        await using var db = _dbFactory.CreateDbContext();
 
         var stub = new ScheduleItem
         {
@@ -156,3 +156,5 @@ public class ScheduleService : IScheduleService
         }
     }
 }
+
+
