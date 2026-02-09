@@ -39,6 +39,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     public ObservableCollection<ScheduleListItem> Schedules { get; } = new();
+    public ObservableCollection<ScheduleListItem> PagedSchedules { get; } = new();
     public ICollectionView SchedulesView { get; }
 
     public ObservableCollection<string> SearchScopes { get; } =
@@ -172,6 +173,26 @@ public partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _listCts;
     private CancellationTokenSource? _detailCts;
 
+    private const int PageSize = 10;
+    private int _currentPage = 1;
+    public int CurrentPage
+    {
+        get => _currentPage;
+        private set => SetProperty(ref _currentPage, value);
+    }
+
+    private int _totalPages = 1;
+    public int TotalPages
+    {
+        get => _totalPages;
+        private set => SetProperty(ref _totalPages, value);
+    }
+
+    public bool HasPrevPage => CurrentPage > 1;
+    public bool HasNextPage => CurrentPage < TotalPages;
+
+    public ObservableCollection<int> PageNumbers { get; } = new();
+
     private bool CanEditOrDelete()
         => !IsBusy && !IsLoadingList && !IsLoadingDetail && SelectedScheduleDetail is not null;
 
@@ -198,12 +219,14 @@ public partial class MainViewModel : ObservableObject
             SelectedSchedule = null;
             SelectedScheduleDetail = null;
         }
+
+        UpdatePaging();
     }
 
     [RelayCommand]
     private void ApplySearch()
     {
-        SchedulesView.Refresh();
+        RefreshSchedulesView();
         ExportCsvCommand.NotifyCanExecuteChanged();
     }
 
@@ -244,7 +267,7 @@ public partial class MainViewModel : ObservableObject
             if (prevId is not null)
             {
                 var restored = Schedules.FirstOrDefault(x => x.Id == prevId);
-                if (restored is not null)
+                if (restored is not null && PagedSchedules.Contains(restored))
                     SelectedSchedule = restored;
             }
         }
@@ -566,4 +589,93 @@ public partial class MainViewModel : ObservableObject
     }
 
     public void StopClock() => _clockTimer.Stop();
+
+    [RelayCommand(CanExecute = nameof(HasPrevPage))]
+    private void PrevPage()
+    {
+        if (CurrentPage <= 1) return;
+        CurrentPage -= 1;
+        UpdatePaging();
+    }
+
+    [RelayCommand(CanExecute = nameof(HasNextPage))]
+    private void NextPage()
+    {
+        if (CurrentPage >= TotalPages) return;
+        CurrentPage += 1;
+        UpdatePaging();
+    }
+
+    [RelayCommand]
+    private void GoToPage(int page)
+    {
+        if (page < 1 || page > TotalPages) return;
+        if (CurrentPage == page) return;
+        CurrentPage = page;
+        UpdatePaging();
+    }
+
+    private void UpdatePaging()
+    {
+        var all = SchedulesView.Cast<object>()
+            .OfType<ScheduleListItem>()
+            .ToList();
+
+        var totalCount = all.Count;
+        TotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+
+        if (CurrentPage > TotalPages) CurrentPage = TotalPages;
+        if (CurrentPage < 1) CurrentPage = 1;
+
+        var pageItems = all
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize)
+            .ToList();
+
+        PagedSchedules.Clear();
+        foreach (var item in pageItems)
+            PagedSchedules.Add(item);
+
+        if (SelectedSchedule is not null &&
+            !pageItems.Contains(SelectedSchedule))
+        {
+            SelectedSchedule = null;
+            SelectedScheduleDetail = null;
+        }
+
+        UpdatePageNumbers();
+
+        OnPropertyChanged(nameof(HasPrevPage));
+        OnPropertyChanged(nameof(HasNextPage));
+        PrevPageCommand.NotifyCanExecuteChanged();
+        NextPageCommand.NotifyCanExecuteChanged();
+    }
+
+    private void UpdatePageNumbers()
+    {
+        PageNumbers.Clear();
+        const int windowSize = 5;
+        if (TotalPages <= 0) return;
+
+        var half = windowSize / 2;
+        var start = CurrentPage - half;
+        var end = CurrentPage + half;
+
+        if (start < 1)
+        {
+            end += 1 - start;
+            start = 1;
+        }
+
+        if (end > TotalPages)
+        {
+            start -= end - TotalPages;
+            end = TotalPages;
+        }
+
+        if (start < 1) start = 1;
+
+        for (var i = start; i <= end && PageNumbers.Count < windowSize; i++)
+            PageNumbers.Add(i);
+    }
 }

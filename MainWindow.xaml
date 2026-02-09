@@ -64,6 +64,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <DockPanel LastChildFill="True" Grid.Row="0" Margin="0,0,0,8">
@@ -93,7 +94,7 @@
                         </DockPanel>
 
                         <ListBox Grid.Row="1"
-                                 ItemsSource="{Binding SchedulesView}"
+                                 ItemsSource="{Binding PagedSchedules}"
                                  SelectedItem="{Binding SelectedSchedule}"
                                  BorderThickness="1"
                                  BorderBrush="#B0B0B0"
@@ -125,6 +126,45 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+
+                        <StackPanel Grid.Row="2"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,8,0,0">
+                            <Button Content="이전"
+                                    Command="{Binding PrevPageCommand}"
+                                    IsEnabled="{Binding HasPrevPage}"
+                                    MinWidth="44"
+                                    Height="26"
+                                    Padding="6,0"
+                                    Margin="0,0,6,0"/>
+
+                            <ItemsControl ItemsSource="{Binding PageNumbers}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{Binding}"
+                                                Command="{Binding DataContext.GoToPageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                MinWidth="24"
+                                                Height="26"
+                                                Padding="5,0"
+                                                Margin="0,0,6,0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Button Content="다음"
+                                    Command="{Binding NextPageCommand}"
+                                    IsEnabled="{Binding HasNextPage}"
+                                    MinWidth="44"
+                                    Height="26"
+                                    Padding="6,0"/>
+                        </StackPanel>
                     </Grid>
 
                     <Grid Grid.Column="1" Margin="12,0,0,0">
