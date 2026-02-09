@@ -43,10 +43,7 @@ public partial class MainViewModel : ObservableObject
         set
         {
             if (SetProperty(ref _selectedSearchScope, value))
-            {
-                ResetToFirstPageAndReload();
                 ExportCsvCommand.NotifyCanExecuteChanged();
-            }
         }
     }
 
@@ -57,12 +54,12 @@ public partial class MainViewModel : ObservableObject
         set
         {
             if (SetProperty(ref _searchText, value))
-            {
-                ResetToFirstPageAndReload();
                 ExportCsvCommand.NotifyCanExecuteChanged();
-            }
         }
     }
+
+    private string _appliedSearchText = "";
+    private string _appliedSearchScope = "전체";
 
     private DateTime _selectedDate;
     public DateTime SelectedDate
@@ -199,6 +196,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ApplySearch()
     {
+        _appliedSearchText = SearchText ?? "";
+        _appliedSearchScope = SelectedSearchScope;
         ResetToFirstPageAndReload();
         ExportCsvCommand.NotifyCanExecuteChanged();
     }
@@ -208,7 +207,10 @@ public partial class MainViewModel : ObservableObject
     {
         SearchText = "";
         SelectedSearchScope = SearchScopes.First();
+        _appliedSearchText = SearchText;
+        _appliedSearchScope = SelectedSearchScope;
         ExportCsvCommand.NotifyCanExecuteChanged();
+        ResetToFirstPageAndReload();
     }
 
     [RelayCommand]
@@ -230,8 +232,8 @@ public partial class MainViewModel : ObservableObject
         {
             var (items, totalCount) = await _scheduleService.GetListByDateAsync(
                 SelectedDate,
-                SearchText,
-                SelectedSearchScope,
+                _appliedSearchText,
+                _appliedSearchScope,
                 CurrentPage,
                 PageSize,
                 token);

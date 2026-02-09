@@ -42,15 +42,16 @@ public class ScheduleService : IScheduleService
             .AsNoTracking()
             .Where(x => x.StartAt < endUtc && x.EndAt >= startUtc);
 
-        var keyword = searchText?.Trim();
+        var keyword = NormalizeKeyword(searchText);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
+            var keywordUpper = keyword.ToUpperInvariant();
             query = searchScope switch
             {
-                "제목" => query.Where(x => x.Title.Contains(keyword)),
-                "장소" => query.Where(x => x.Location != null && x.Location.Contains(keyword)),
-                _ => query.Where(x => x.Title.Contains(keyword) ||
-                                      (x.Location != null && x.Location.Contains(keyword))),
+                "제목" => query.Where(x => x.Title.ToUpper().Contains(keywordUpper)),
+                "장소" => query.Where(x => x.Location != null && x.Location.ToUpper().Contains(keywordUpper)),
+                _ => query.Where(x => x.Title.ToUpper().Contains(keywordUpper) ||
+                                      (x.Location != null && x.Location.ToUpper().Contains(keywordUpper))),
             };
         }
 
@@ -217,6 +218,17 @@ public class ScheduleService : IScheduleService
             s = s.Replace("\"", "\"\"");
 
         return mustQuote ? $"\"{s}\"" : s;
+    }
+
+    private static string NormalizeKeyword(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+
+        var trimmed = value.Trim();
+        var collapsed = string.Join(" ",
+            trimmed.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        return collapsed;
     }
 }
 
