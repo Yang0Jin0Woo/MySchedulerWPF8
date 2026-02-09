@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using MyScheduler.Models;
 using MyScheduler.Utils;
+using System.Globalization;
+using System.Text;
 
 namespace MyScheduler.Services;
 
@@ -161,6 +163,53 @@ public class ScheduleService : IScheduleService
             throw new ConcurrencyConflictException(latest: latestUtc, isDeleted: false);
         }
     }
+
+    public bool MatchesFilter(ScheduleListItem item, string? searchText, string? searchScope)
+    {
+        var keyword = searchText?.Trim();
+        if (string.IsNullOrWhiteSpace(keyword)) return true;
+
+        bool Contains(string? s) =>
+            !string.IsNullOrEmpty(s) &&
+            s.Contains(keyword, StringComparison.CurrentCultureIgnoreCase);
+
+        return searchScope switch
+        {
+            "제목" => Contains(item.Title),
+            "장소" => Contains(item.Location),
+            _ => Contains(item.Title) || Contains(item.Location),
+        };
+    }
+
+    public byte[] BuildCsvBytes(IEnumerable<ScheduleListItem> items)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Id,Title,Location,StartAt,EndAt");
+
+        foreach (var r in items)
+        {
+            sb.Append(EscapeCsv(r.Id.ToString(CultureInfo.InvariantCulture))).Append(',');
+            sb.Append(EscapeCsv(r.Title)).Append(',');
+            sb.Append(EscapeCsv(r.Location)).Append(',');
+            sb.Append(EscapeCsv(r.StartAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))).Append(',');
+            sb.Append(EscapeCsv(r.EndAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)));
+            sb.AppendLine();
+        }
+
+        return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+    }
+
+    private static string EscapeCsv(string? value)
+    {
+        var s = value ?? "";
+        var mustQuote = s.Contains(',') || s.Contains('"') || s.Contains('\n') || s.Contains('\r');
+
+        if (s.Contains('"'))
+            s = s.Replace("\"", "\"\"");
+
+        return mustQuote ? $"\"{s}\"" : s;
+    }
 }
+
 
 

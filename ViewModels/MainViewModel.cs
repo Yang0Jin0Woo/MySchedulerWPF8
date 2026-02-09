@@ -7,10 +7,8 @@ using Microsoft.Win32;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
@@ -184,16 +182,7 @@ public partial class MainViewModel : ObservableObject
         var keyword = SearchText?.Trim();
         if (string.IsNullOrWhiteSpace(keyword)) return true;
 
-        bool Contains(string? s) =>
-            !string.IsNullOrEmpty(s) &&
-            s.Contains(keyword, StringComparison.CurrentCultureIgnoreCase);
-
-        return SelectedSearchScope switch
-        {
-            "제목" => Contains(item.Title),
-            "장소" => Contains(item.Location),
-            _ => Contains(item.Title) || Contains(item.Location),
-        };
+        return _scheduleService.MatchesFilter(item, SearchText, SelectedSearchScope);
     }
 
     private void RefreshSchedulesView()
@@ -455,20 +444,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var sb = new StringBuilder();
-            sb.AppendLine("Id,Title,Location,StartAt,EndAt");
-
-            foreach (var r in rows)
-            {
-                sb.Append(EscapeCsv(r.Id.ToString(CultureInfo.InvariantCulture))).Append(',');
-                sb.Append(EscapeCsv(r.Title)).Append(',');
-                sb.Append(EscapeCsv(r.Location)).Append(',');
-                sb.Append(EscapeCsv(r.StartAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))).Append(',');
-                sb.Append(EscapeCsv(r.EndAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)));
-                sb.AppendLine();
-            }
-
-            var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+            var bytes = _scheduleService.BuildCsvBytes(rows);
             await File.WriteAllBytesAsync(dlg.FileName, bytes);
 
             MessageBox.Show(
@@ -488,17 +464,6 @@ public partial class MainViewModel : ObservableObject
                 "3) 디스크 용량\n\n" +
                 $"오류: {ex.Message}");
         }
-    }
-
-    private static string EscapeCsv(string? value)
-    {
-        var s = value ?? "";
-        var mustQuote = s.Contains(',') || s.Contains('"') || s.Contains('\n') || s.Contains('\r');
-
-        if (s.Contains('"'))
-            s = s.Replace("\"", "\"\"");
-
-        return mustQuote ? $"\"{s}\"" : s;
     }
 
     private void HandleConcurrencyConflict(ConcurrencyConflictException ex)
