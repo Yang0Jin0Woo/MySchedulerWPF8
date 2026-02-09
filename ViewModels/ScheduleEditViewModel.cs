@@ -1,7 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MyScheduler.Models;
-using MyScheduler.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,8 +11,8 @@ public partial class ScheduleEditViewModel : ObservableObject
 {
     // ===== 기본 입력 =====
     [ObservableProperty] private string title = "";
-    [ObservableProperty] private DateTime startDate = TimeUtil.GetKoreaNow().Date;
-    [ObservableProperty] private DateTime endDate = TimeUtil.GetKoreaNow().Date;
+    [ObservableProperty] private DateTime startDate;
+    [ObservableProperty] private DateTime endDate;
 
     [ObservableProperty] private string? location;
     [ObservableProperty] private string? notes;

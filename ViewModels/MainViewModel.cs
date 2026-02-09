@@ -2,7 +2,6 @@
 using CommunityToolkit.Mvvm.Input;
 using MyScheduler.Models;
 using MyScheduler.Services;
-using MyScheduler.Utils;
 using MyScheduler.Views;
 using Microsoft.Win32;
 using System;
@@ -34,7 +33,7 @@ public partial class MainViewModel : ObservableObject
             new SortDescription(nameof(ScheduleListItem.StartAt), ListSortDirection.Ascending));
         SchedulesView.Filter = FilterSchedule;
 
-        SelectedDate = TimeUtil.GetKoreaNow().Date;
+        SelectedDate = _scheduleService.GetKoreaNow().Date;
 
         StartClock();
         _ = LoadSchedulesAsync();
@@ -561,10 +560,10 @@ public partial class MainViewModel : ObservableObject
         _clockTimer.Interval = TimeSpan.FromSeconds(1);
         _clockTimer.Tick += (_, __) =>
         {
-            NowKst = TimeUtil.UtcToKorea(DateTime.UtcNow);
+            NowKst = _scheduleService.UtcToKorea(DateTime.UtcNow);
         };
 
-        NowKst = TimeUtil.UtcToKorea(DateTime.UtcNow);
+        NowKst = _scheduleService.UtcToKorea(DateTime.UtcNow);
         _clockTimer.Start();
     }
 

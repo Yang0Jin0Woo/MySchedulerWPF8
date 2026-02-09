@@ -13,6 +13,12 @@ public class ScheduleService : IScheduleService
         _dbFactory = dbFactory;
     }
 
+    public DateTime GetKoreaNow()
+        => TimeUtil.GetKoreaNow();
+
+    public DateTime UtcToKorea(DateTime utc)
+        => TimeUtil.UtcToKorea(utc);
+
     public async Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date)
     {
         var start = date.Date;
