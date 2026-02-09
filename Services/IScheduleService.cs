@@ -17,6 +17,11 @@ public interface IScheduleService
         CancellationToken cancellationToken);
     Task<ScheduleItem?> GetByIdAsync(int id, CancellationToken cancellationToken);
 
+    Task<List<ScheduleListItem>> GetUpcomingAsync(
+        DateTime startKst,
+        DateTime endKst,
+        CancellationToken cancellationToken);
+
     Task<ScheduleItem> AddAsync(ScheduleItem item);
     Task UpdateAsync(ScheduleItem item);
     Task DeleteAsync(int id, byte[] rowVersion);

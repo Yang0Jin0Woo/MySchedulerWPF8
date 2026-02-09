@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using MyScheduler.Models;
 using MyScheduler.Utils;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Threading;
@@ -89,6 +90,53 @@ public class ScheduleService : IScheduleService
         item.EndAt = TimeUtil.UtcToKorea(item.EndAt);
 
         return item;
+    }
+
+    public async Task<List<ScheduleListItem>> GetUpcomingAsync(
+        DateTime startKst,
+        DateTime endKst,
+        CancellationToken cancellationToken)
+    {
+        if (endKst <= startKst) return new List<ScheduleListItem>();
+
+        var startUtc = TimeUtil.KoreaToUtc(startKst);
+        var endUtc = TimeUtil.KoreaToUtc(endKst);
+
+        await using var db = _dbFactory.CreateDbContext();
+
+        var primary = await db.Schedules
+            .AsNoTracking()
+            .Where(x => x.StartAt >= startUtc && x.StartAt < endUtc)
+            .OrderBy(x => x.StartAt)
+            .Select(x => new ScheduleListItem
+            {
+                Id = x.Id,
+                Title = x.Title,
+                Location = x.Location,
+                StartAt = TimeUtil.UtcToKorea(x.StartAt),
+                EndAt = TimeUtil.UtcToKorea(x.EndAt)
+            })
+            .ToListAsync(cancellationToken);
+
+        if (primary.Count > 0)
+            return primary;
+
+        // Legacy fallback: 일부 데이터가 KST로 저장된 경우를 대비해 KST 기준으로 조회
+        var legacy = await db.Schedules
+            .AsNoTracking()
+            .Where(x => x.StartAt >= startKst && x.StartAt < endKst)
+            .OrderBy(x => x.StartAt)
+            .Select(x => new ScheduleListItem
+            {
+                Id = x.Id,
+                Title = x.Title,
+                Location = x.Location,
+                StartAt = x.StartAt,
+                EndAt = x.EndAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return legacy;
     }
 
     public async Task<ScheduleItem> AddAsync(ScheduleItem item)

@@ -293,7 +293,170 @@
             </Grid>
         </Grid>
 
-        <Grid>
+        <Grid Panel.ZIndex="5" IsHitTestVisible="True">
+            <StackPanel x:Name="NotificationStack"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Margin="12">
+                <ItemsControl ItemsSource="{Binding DisplayNotifications}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Vertical"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,8"
+                                    Background="White"
+                                    BorderBrush="#E1E1E1"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#000000"
+                                                      BlurRadius="10"
+                                                      ShadowDepth="2"
+                                                      Opacity="0.15"/>
+                                </Border.Effect>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0"
+                                            Background="{Binding AccentBrush}"
+                                            CornerRadius="8,0,0,8"/>
+
+                                    <Button Grid.Column="1"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Padding="12,10"
+                                            HorizontalContentAlignment="Left"
+                                            Command="{Binding DataContext.OpenNotificationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding DisplayTitle}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       Foreground="#222"/>
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Foreground="#666"
+                                                       Text="{Binding TimeText}"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Button Grid.Column="2"
+                                            Width="28"
+                                            Height="28"
+                                            Margin="0,6,6,0"
+                                            VerticalAlignment="Top"
+                                            Content="×"
+                                            FontSize="14"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Command="{Binding DataContext.DismissNotificationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border Background="#333333"
+                        CornerRadius="10"
+                        Padding="8,4"
+                        HorizontalAlignment="Right">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasOverflow}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Foreground="White"
+                               FontSize="12"
+                               Text="{Binding OverflowCount, StringFormat=+{0}}"/>
+                </Border>
+            </StackPanel>
+
+            <Popup IsOpen="{Binding IsNotificationGroupOpen}"
+                   PlacementTarget="{Binding ElementName=NotificationStack}"
+                   Placement="Top"
+                   StaysOpen="True"
+                   AllowsTransparency="True">
+                <Border Background="White"
+                        BorderBrush="#E1E1E1"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="10">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000"
+                                          BlurRadius="10"
+                                          ShadowDepth="2"
+                                          Opacity="0.15"/>
+                    </Border.Effect>
+                    <Grid Width="320">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="8"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Grid.Column="0"
+                                   Text="관련 일정"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"/>
+                        <Button Grid.Row="0"
+                                Grid.Column="1"
+                                Content="닫기"
+                                Padding="6,2"
+                                Margin="6,0,0,0"
+                                Command="{Binding CloseNotificationGroupCommand}"/>
+
+                        <ItemsControl Grid.Row="2"
+                                      Grid.ColumnSpan="2"
+                                      ItemsSource="{Binding NotificationGroupItems}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Vertical"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Background="Transparent"
+                                            BorderThickness="0"
+                                            Padding="6,4"
+                                            HorizontalContentAlignment="Left"
+                                            Command="{Binding DataContext.OpenGroupedNotificationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="12"
+                                                       Foreground="#222"/>
+                                            <TextBlock Margin="0,2,0,0"
+                                                       Foreground="#666"
+                                                       Text="{Binding TimeText}"/>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </Border>
+            </Popup>
+        </Grid>
+
+        <Grid Panel.ZIndex="10">
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed"/>
