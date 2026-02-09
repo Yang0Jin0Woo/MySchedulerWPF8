@@ -216,6 +216,31 @@
                             </TextBlock.Style>
                             일정을 선택하면 상세 내용이 표시됩니다.
                         </TextBlock>
+
+                        <Border Background="#80FFFFFF"
+                                CornerRadius="4">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLoadingDetail}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel HorizontalAlignment="Center"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="상세 불러오는 중..."
+                                           FontWeight="SemiBold"
+                                           Foreground="#444"
+                                           HorizontalAlignment="Center"/>
+                                <ProgressBar Margin="0,8,0,0"
+                                             Width="140"
+                                             Height="8"
+                                             IsIndeterminate="True"/>
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Grid>
 

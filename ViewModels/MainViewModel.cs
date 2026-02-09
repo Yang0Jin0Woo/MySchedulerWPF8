@@ -103,6 +103,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedSchedule, value))
             {
+                SelectedScheduleDetail = null;
                 _ = LoadSelectedDetailAsync();
                 EditScheduleCommand.NotifyCanExecuteChanged();
                 DeleteScheduleCommand.NotifyCanExecuteChanged();
@@ -154,11 +155,25 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private bool _isLoadingDetail;
+    public bool IsLoadingDetail
+    {
+        get => _isLoadingDetail;
+        private set
+        {
+            if (SetProperty(ref _isLoadingDetail, value))
+            {
+                EditScheduleCommand.NotifyCanExecuteChanged();
+                DeleteScheduleCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
     private int _listRequestVersion;
     private int _detailRequestVersion;
 
     private bool CanEditOrDelete()
-        => !IsBusy && !IsLoadingList && SelectedScheduleDetail is not null;
+        => !IsBusy && !IsLoadingList && !IsLoadingDetail && SelectedScheduleDetail is not null;
 
     private bool CanExportCsv()
         => !IsBusy && !IsLoadingList && SchedulesView.Cast<object>().Any();
@@ -261,11 +276,12 @@ public partial class MainViewModel : ObservableObject
         if (SelectedSchedule is null)
         {
             SelectedScheduleDetail = null;
+            IsLoadingDetail = false;
             return;
         }
 
         var version = ++_detailRequestVersion;
-        IsBusy = true;
+        IsLoadingDetail = true;
 
         try
         {
@@ -286,7 +302,7 @@ public partial class MainViewModel : ObservableObject
         finally
         {
             if (version == _detailRequestVersion)
-                IsBusy = false;
+                IsLoadingDetail = false;
         }
     }
 
@@ -370,6 +386,7 @@ public partial class MainViewModel : ObservableObject
         if (SelectedScheduleDetail is null) return;
 
         var id = SelectedScheduleDetail.Id;
+        var rowVersion = SelectedScheduleDetail.RowVersion;
 
         if (MessageBox.Show(
                 "정말 삭제하시겠습니까?",
@@ -382,12 +399,10 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var latest = await _scheduleService.GetByIdAsync(id);
-
-            if (latest?.RowVersion is null || latest.RowVersion.Length == 0)
+            if (rowVersion is null || rowVersion.Length == 0)
                 throw new ConcurrencyConflictException(null, true);
 
-            await _scheduleService.DeleteAsync(latest.Id, latest.RowVersion);
+            await _scheduleService.DeleteAsync(id, rowVersion);
 
             SelectedSchedule = null;
             SelectedScheduleDetail = null;
