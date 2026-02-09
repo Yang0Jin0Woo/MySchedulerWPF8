@@ -6,13 +6,11 @@ using MyScheduler.Views;
 using Microsoft.Win32;
 using System;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Data;
 using System.Windows.Threading;
 
 namespace MyScheduler.ViewModels;
@@ -27,20 +25,13 @@ public partial class MainViewModel : ObservableObject
 
         _selectedSearchScope = SearchScopes.First();
 
-        SchedulesView = CollectionViewSource.GetDefaultView(Schedules);
-        SchedulesView.SortDescriptions.Add(
-            new SortDescription(nameof(ScheduleListItem.StartAt), ListSortDirection.Ascending));
-        SchedulesView.Filter = FilterSchedule;
-
         SelectedDate = _scheduleService.GetKoreaNow().Date;
 
         StartClock();
         _ = LoadSchedulesAsync();
     }
 
-    public ObservableCollection<ScheduleListItem> Schedules { get; } = new();
     public ObservableCollection<ScheduleListItem> PagedSchedules { get; } = new();
-    public ICollectionView SchedulesView { get; }
 
     public ObservableCollection<string> SearchScopes { get; } =
         new() { "전체", "제목", "장소" };
@@ -53,7 +44,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedSearchScope, value))
             {
-                RefreshSchedulesView();
+                ResetToFirstPageAndReload();
                 ExportCsvCommand.NotifyCanExecuteChanged();
             }
         }
@@ -67,7 +58,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _searchText, value))
             {
-                RefreshSchedulesView();
+                ResetToFirstPageAndReload();
                 ExportCsvCommand.NotifyCanExecuteChanged();
             }
         }
@@ -81,7 +72,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedDate, value))
             {
-                _ = LoadSchedulesAsync();
+                ResetToFirstPageAndReload();
                 ExportCsvCommand.NotifyCanExecuteChanged();
             }
         }
@@ -197,36 +188,18 @@ public partial class MainViewModel : ObservableObject
         => !IsBusy && !IsLoadingList && !IsLoadingDetail && SelectedScheduleDetail is not null;
 
     private bool CanExportCsv()
-        => !IsBusy && !IsLoadingList && SchedulesView.Cast<object>().Any();
+        => !IsBusy && !IsLoadingList && PagedSchedules.Any();
 
-    private bool FilterSchedule(object obj)
+    private void ResetToFirstPageAndReload()
     {
-        if (obj is not ScheduleListItem item) return false;
-
-        var keyword = SearchText?.Trim();
-        if (string.IsNullOrWhiteSpace(keyword)) return true;
-
-        return _scheduleService.MatchesFilter(item, SearchText, SelectedSearchScope);
-    }
-
-    private void RefreshSchedulesView()
-    {
-        SchedulesView.Refresh();
-
-        if (SelectedSchedule is not null &&
-            !SchedulesView.Cast<object>().Contains(SelectedSchedule))
-        {
-            SelectedSchedule = null;
-            SelectedScheduleDetail = null;
-        }
-
-        UpdatePaging();
+        CurrentPage = 1;
+        _ = LoadSchedulesAsync();
     }
 
     [RelayCommand]
     private void ApplySearch()
     {
-        RefreshSchedulesView();
+        ResetToFirstPageAndReload();
         ExportCsvCommand.NotifyCanExecuteChanged();
     }
 
@@ -255,21 +228,37 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var items = await _scheduleService.GetListByDateAsync(SelectedDate, token);
+            var (items, totalCount) = await _scheduleService.GetListByDateAsync(
+                SelectedDate,
+                SearchText,
+                SelectedSearchScope,
+                CurrentPage,
+                PageSize,
+                token);
             if (version != _listRequestVersion) return;
 
-            Schedules.Clear();
+            PagedSchedules.Clear();
             foreach (var item in items)
-                Schedules.Add(item);
+                PagedSchedules.Add(item);
 
-            RefreshSchedulesView();
+            TotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+            if (CurrentPage > TotalPages) CurrentPage = TotalPages;
+            if (CurrentPage < 1) CurrentPage = 1;
+
+            if (PagedSchedules.Count == 0)
+            {
+                SelectedSchedule = null;
+                SelectedScheduleDetail = null;
+            }
 
             if (prevId is not null)
             {
-                var restored = Schedules.FirstOrDefault(x => x.Id == prevId);
-                if (restored is not null && PagedSchedules.Contains(restored))
+                var restored = PagedSchedules.FirstOrDefault(x => x.Id == prevId);
+                if (restored is not null)
                     SelectedSchedule = restored;
             }
+
+            UpdatePagingUi();
         }
         catch (OperationCanceledException)
         {
@@ -372,7 +361,7 @@ public partial class MainViewModel : ObservableObject
             var created = await _scheduleService.AddAsync(vm.Result);
             await LoadSchedulesAsync(false);
 
-            SelectedSchedule = Schedules.FirstOrDefault(x => x.Id == created.Id);
+            SelectedSchedule = PagedSchedules.FirstOrDefault(x => x.Id == created.Id);
         }
         catch (Exception ex)
         {
@@ -472,9 +461,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanExportCsv))]
     private async Task ExportCsvAsync()
     {
-        var rows = SchedulesView.Cast<object>()
-            .OfType<ScheduleListItem>()
-            .ToList();
+        var rows = PagedSchedules.ToList();
 
         if (rows.Count == 0)
         {
@@ -595,7 +582,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (CurrentPage <= 1) return;
         CurrentPage -= 1;
-        UpdatePaging();
+        _ = LoadSchedulesAsync(false);
     }
 
     [RelayCommand(CanExecute = nameof(HasNextPage))]
@@ -603,7 +590,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (CurrentPage >= TotalPages) return;
         CurrentPage += 1;
-        UpdatePaging();
+        _ = LoadSchedulesAsync(false);
     }
 
     [RelayCommand]
@@ -612,37 +599,11 @@ public partial class MainViewModel : ObservableObject
         if (page < 1 || page > TotalPages) return;
         if (CurrentPage == page) return;
         CurrentPage = page;
-        UpdatePaging();
+        _ = LoadSchedulesAsync(false);
     }
 
-    private void UpdatePaging()
+    private void UpdatePagingUi()
     {
-        var all = SchedulesView.Cast<object>()
-            .OfType<ScheduleListItem>()
-            .ToList();
-
-        var totalCount = all.Count;
-        TotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
-
-        if (CurrentPage > TotalPages) CurrentPage = TotalPages;
-        if (CurrentPage < 1) CurrentPage = 1;
-
-        var pageItems = all
-            .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize)
-            .ToList();
-
-        PagedSchedules.Clear();
-        foreach (var item in pageItems)
-            PagedSchedules.Add(item);
-
-        if (SelectedSchedule is not null &&
-            !pageItems.Contains(SelectedSchedule))
-        {
-            SelectedSchedule = null;
-            SelectedScheduleDetail = null;
-        }
-
         UpdatePageNumbers();
 
         OnPropertyChanged(nameof(HasPrevPage));

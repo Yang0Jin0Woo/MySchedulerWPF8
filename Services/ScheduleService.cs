@@ -22,7 +22,13 @@ public class ScheduleService : IScheduleService
     public DateTime UtcToKorea(DateTime utc)
         => TimeUtil.UtcToKorea(utc);
 
-    public async Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date, CancellationToken cancellationToken)
+    public async Task<(List<ScheduleListItem> Items, int TotalCount)> GetListByDateAsync(
+        DateTime date,
+        string? searchText,
+        string? searchScope,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
     {
         var start = date.Date;
         var end = start.AddDays(1);
@@ -32,10 +38,29 @@ public class ScheduleService : IScheduleService
 
         await using var db = _dbFactory.CreateDbContext();
 
-        var items = await db.Schedules
+        IQueryable<ScheduleItem> query = db.Schedules
             .AsNoTracking()
-            .Where(x => x.StartAt < endUtc && x.EndAt >= startUtc)
+            .Where(x => x.StartAt < endUtc && x.EndAt >= startUtc);
+
+        var keyword = searchText?.Trim();
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = searchScope switch
+            {
+                "제목" => query.Where(x => x.Title.Contains(keyword)),
+                "장소" => query.Where(x => x.Location != null && x.Location.Contains(keyword)),
+                _ => query.Where(x => x.Title.Contains(keyword) ||
+                                      (x.Location != null && x.Location.Contains(keyword))),
+            };
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var skip = Math.Max(0, (page - 1) * pageSize);
+        var items = await query
             .OrderBy(x => x.StartAt)
+            .Skip(skip)
+            .Take(pageSize)
             .Select(x => new ScheduleListItem
             {
                 Id = x.Id,
@@ -46,7 +71,7 @@ public class ScheduleService : IScheduleService
             })
             .ToListAsync(cancellationToken);
 
-        return items;
+        return (items, totalCount);
     }
 
     public async Task<ScheduleItem?> GetByIdAsync(int id, CancellationToken cancellationToken)
@@ -163,23 +188,6 @@ public class ScheduleService : IScheduleService
 
             throw new ConcurrencyConflictException(latest: latestUtc, isDeleted: false);
         }
-    }
-
-    public bool MatchesFilter(ScheduleListItem item, string? searchText, string? searchScope)
-    {
-        var keyword = searchText?.Trim();
-        if (string.IsNullOrWhiteSpace(keyword)) return true;
-
-        bool Contains(string? s) =>
-            !string.IsNullOrEmpty(s) &&
-            s.Contains(keyword, StringComparison.CurrentCultureIgnoreCase);
-
-        return searchScope switch
-        {
-            "제목" => Contains(item.Title),
-            "장소" => Contains(item.Location),
-            _ => Contains(item.Title) || Contains(item.Location),
-        };
     }
 
     public byte[] BuildCsvBytes(IEnumerable<ScheduleListItem> items)
