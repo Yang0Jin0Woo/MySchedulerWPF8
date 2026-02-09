@@ -3,6 +3,7 @@ using MyScheduler.Models;
 using MyScheduler.Utils;
 using System.Globalization;
 using System.Text;
+using System.Threading;
 
 namespace MyScheduler.Services;
 
@@ -21,7 +22,7 @@ public class ScheduleService : IScheduleService
     public DateTime UtcToKorea(DateTime utc)
         => TimeUtil.UtcToKorea(utc);
 
-    public async Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date)
+    public async Task<List<ScheduleListItem>> GetListByDateAsync(DateTime date, CancellationToken cancellationToken)
     {
         var start = date.Date;
         var end = start.AddDays(1);
@@ -43,18 +44,18 @@ public class ScheduleService : IScheduleService
                 StartAt = TimeUtil.UtcToKorea(x.StartAt),
                 EndAt = TimeUtil.UtcToKorea(x.EndAt)
             })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         return items;
     }
 
-    public async Task<ScheduleItem?> GetByIdAsync(int id)
+    public async Task<ScheduleItem?> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
         await using var db = _dbFactory.CreateDbContext();
 
         var item = await db.Schedules
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (item is null) return null;
 
@@ -210,6 +211,7 @@ public class ScheduleService : IScheduleService
         return mustQuote ? $"\"{s}\"" : s;
     }
 }
+
 
 
 

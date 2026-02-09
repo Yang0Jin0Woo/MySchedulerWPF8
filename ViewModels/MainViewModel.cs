@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
@@ -168,6 +169,8 @@ public partial class MainViewModel : ObservableObject
 
     private int _listRequestVersion;
     private int _detailRequestVersion;
+    private CancellationTokenSource? _listCts;
+    private CancellationTokenSource? _detailCts;
 
     private bool CanEditOrDelete()
         => !IsBusy && !IsLoadingList && !IsLoadingDetail && SelectedScheduleDetail is not null;
@@ -216,6 +219,11 @@ public partial class MainViewModel : ObservableObject
     private async Task LoadSchedulesAsync(bool showLoading = true)
     {
         var version = ++_listRequestVersion;
+        _listCts?.Cancel();
+        _listCts?.Dispose();
+        var listCts = new CancellationTokenSource();
+        _listCts = listCts;
+        var token = listCts.Token;
 
         if (showLoading)
             IsLoadingList = true;
@@ -224,7 +232,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var items = await _scheduleService.GetListByDateAsync(SelectedDate);
+            var items = await _scheduleService.GetListByDateAsync(SelectedDate, token);
             if (version != _listRequestVersion) return;
 
             Schedules.Clear();
@@ -239,6 +247,10 @@ public partial class MainViewModel : ObservableObject
                 if (restored is not null)
                     SelectedSchedule = restored;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
         }
         catch (Exception ex)
         {
@@ -256,6 +268,12 @@ public partial class MainViewModel : ObservableObject
 
             if (version == _listRequestVersion)
                 ExportCsvCommand.NotifyCanExecuteChanged();
+
+            if (ReferenceEquals(_listCts, listCts))
+            {
+                _listCts?.Dispose();
+                _listCts = null;
+            }
         }
     }
 
@@ -269,14 +287,23 @@ public partial class MainViewModel : ObservableObject
         }
 
         var version = ++_detailRequestVersion;
+        _detailCts?.Cancel();
+        _detailCts?.Dispose();
+        var detailCts = new CancellationTokenSource();
+        _detailCts = detailCts;
+        var token = detailCts.Token;
         IsLoadingDetail = true;
 
         try
         {
-            var detail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id);
+            var detail = await _scheduleService.GetByIdAsync(SelectedSchedule.Id, token);
             if (version != _detailRequestVersion) return;
 
             SelectedScheduleDetail = detail;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
         }
         catch (Exception ex)
         {
@@ -291,6 +318,12 @@ public partial class MainViewModel : ObservableObject
         {
             if (version == _detailRequestVersion)
                 IsLoadingDetail = false;
+
+            if (ReferenceEquals(_detailCts, detailCts))
+            {
+                _detailCts?.Dispose();
+                _detailCts = null;
+            }
         }
     }
 
