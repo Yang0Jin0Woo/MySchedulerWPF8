@@ -11,6 +11,12 @@
 ### 일정 상세 조회
 <img src="screenshots/image3.png" width="800"/>
 
+### 일정 알림(배너)
+<img src="screenshots/image4.png" width="800"/>
+
+### 일정 알림(다중 알림 요약 / 관련 일정 패널)
+<img src="screenshots/image5.png" width="800"/>
+
 
 ## 프로젝트 소개
 
