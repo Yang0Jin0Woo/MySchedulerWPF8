@@ -187,9 +187,10 @@ public partial class MainViewModel : ObservableObject
     private bool _startupNotificationShown;
     private CancellationTokenSource _notificationCts = new();
     private NotificationItem? _activeGroupSource;
+    private bool _notificationTimerAligned;
 
     private const int NotificationLeadMinutes = 10;
-    private static readonly TimeSpan NotificationScanInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan NotificationScanInterval = TimeSpan.FromMinutes(5);
     private const int MaxActiveNotifications = 20;
 
     private const int PageSize = 10;
@@ -703,6 +704,8 @@ public partial class MainViewModel : ObservableObject
 
         if (ReferenceEquals(_activeGroupSource, item))
             CloseNotificationGroup();
+
+        ClearNotifiedKeys(item);
     }
 
     [RelayCommand]
@@ -741,11 +744,32 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(HasOverflow));
         };
 
-        _notificationTimer.Interval = NotificationScanInterval;
-        _notificationTimer.Tick += async (_, __) => await ScanNotificationsAsync();
+        _notificationTimer.Stop();
+        _notificationTimerAligned = false;
+        _notificationTimer.Tick -= NotificationTimerTick;
+        _notificationTimer.Tick += NotificationTimerTick;
+        _notificationTimer.Interval = GetNotificationAlignDelay(NowKst);
         _notificationTimer.Start();
         _ = ScanNotificationsAsync();
         _ = ShowStartupNotificationAsync();
+    }
+
+    private TimeSpan GetNotificationAlignDelay(DateTime now)
+    {
+        var remainderMs = ((now.Second % 30) * 1000) + now.Millisecond;
+        var delayMs = (30000 - remainderMs) % 30000;
+        return TimeSpan.FromMilliseconds(delayMs);
+    }
+
+    private async void NotificationTimerTick(object? sender, EventArgs e)
+    {
+        if (!_notificationTimerAligned)
+        {
+            _notificationTimerAligned = true;
+            _notificationTimer.Interval = NotificationScanInterval;
+        }
+
+        await ScanNotificationsAsync();
     }
 
     private void ShowNotificationGroup(NotificationItem item)
@@ -786,14 +810,17 @@ public partial class MainViewModel : ObservableObject
 
                 if (fresh.Count > 0)
                 {
-                    var groupItems = BuildGroupItems(fresh);
-                    var first = fresh[0];
-                    var additional = Math.Max(0, fresh.Count - 1);
+                    if (TryMergeIntoLatestNotification(fresh, targetStart, targetEnd, now))
+                        return;
+
+                    var groupItems = BuildGroupItems(upcoming);
+                    var first = upcoming[0];
+                    var additional = Math.Max(0, upcoming.Count - 1);
                     AddNotification(first, now, markNotified: true, additionalCount: additional, relatedItems: groupItems);
 
-                    for (var i = 1; i < fresh.Count; i++)
+                    for (var i = 1; i < upcoming.Count; i++)
                     {
-                        var key = BuildNotificationKey(fresh[i].Id, fresh[i].StartAt);
+                        var key = BuildNotificationKey(upcoming[i].Id, upcoming[i].StartAt);
                         if (!_notifiedKeys.ContainsKey(key))
                             _notifiedKeys[key] = now;
                     }
@@ -864,8 +891,121 @@ public partial class MainViewModel : ObservableObject
             ActiveNotifications.RemoveAt(ActiveNotifications.Count - 1);
     }
 
+    private bool TryMergeIntoLatestNotification(IReadOnlyList<ScheduleListItem> fresh, DateTime windowStart, DateTime windowEnd, DateTime now)
+    {
+        if (ActiveNotifications.Count == 0) return false;
+
+        var existing = ActiveNotifications[0];
+        if (existing.StartAt < windowStart || existing.StartAt >= windowEnd)
+            return false;
+
+        foreach (var item in fresh)
+        {
+            var key = BuildNotificationKey(item.Id, item.StartAt);
+            if (!_notifiedKeys.ContainsKey(key))
+                _notifiedKeys[key] = now;
+        }
+
+        var merged = MergeNotificationItems(existing, fresh);
+        ActiveNotifications.RemoveAt(0);
+        ActiveNotifications.Insert(0, merged);
+
+        if (ReferenceEquals(_activeGroupSource, existing))
+        {
+            _activeGroupSource = merged;
+            RefreshNotificationGroup(merged);
+        }
+
+        return true;
+    }
+
+    private static NotificationItem MergeNotificationItems(NotificationItem existing, IReadOnlyList<ScheduleListItem> fresh)
+    {
+        var map = new Dictionary<string, NotificationGroupItem>();
+
+        foreach (var item in ToGroupItems(existing))
+            map[BuildNotificationKey(item.ScheduleId, item.StartAt)] = item;
+
+        foreach (var item in fresh)
+        {
+            var key = BuildNotificationKey(item.Id, item.StartAt);
+            if (!map.ContainsKey(key))
+            {
+                map[key] = new NotificationGroupItem
+                {
+                    ScheduleId = item.Id,
+                    Title = item.Title,
+                    StartAt = item.StartAt,
+                    EndAt = item.EndAt
+                };
+            }
+        }
+
+        var list = map.Values.OrderBy(x => x.StartAt).ToList();
+        var additional = Math.Max(0, list.Count - 1);
+
+        return new NotificationItem
+        {
+            ScheduleId = existing.ScheduleId,
+            Title = existing.Title,
+            StartAt = existing.StartAt,
+            EndAt = existing.EndAt,
+            AccentBrush = existing.AccentBrush,
+            AdditionalCount = additional,
+            RelatedItems = list
+        };
+    }
+
+    private static IReadOnlyList<NotificationGroupItem> ToGroupItems(NotificationItem item)
+    {
+        if (item.RelatedItems.Count > 0)
+            return item.RelatedItems;
+
+        return new[]
+        {
+            new NotificationGroupItem
+            {
+                ScheduleId = item.ScheduleId,
+                Title = item.Title,
+                StartAt = item.StartAt,
+                EndAt = item.EndAt
+            }
+        };
+    }
+
+    private void RefreshNotificationGroup(NotificationItem item)
+    {
+        if (!IsNotificationGroupOpen) return;
+
+        NotificationGroupItems.Clear();
+        foreach (var related in item.RelatedItems)
+            NotificationGroupItems.Add(related);
+    }
+
     private static string BuildNotificationKey(int scheduleId, DateTime startAt)
         => $"{scheduleId}:{startAt.Ticks}";
+
+    private void ClearNotifiedKeys(NotificationItem item)
+    {
+        var items = item.RelatedItems.Count > 0
+            ? item.RelatedItems
+            : new[]
+            {
+                new NotificationGroupItem
+                {
+                    ScheduleId = item.ScheduleId,
+                    Title = item.Title,
+                    StartAt = item.StartAt,
+                    EndAt = item.EndAt
+                }
+            };
+
+        foreach (var related in items)
+        {
+            var key = BuildNotificationKey(related.ScheduleId, related.StartAt);
+            _notifiedKeys.Remove(key);
+        }
+    }
 
     private void PruneNotifiedKeys(DateTime now)
     {
@@ -899,7 +1039,10 @@ public partial class MainViewModel : ObservableObject
         if (minutesLeft <= 5)
             return System.Windows.Media.Brushes.Orange;
 
-        return System.Windows.Media.Brushes.DodgerBlue;
+        if (minutesLeft <= 10)
+            return System.Windows.Media.Brushes.DodgerBlue;
+
+        return System.Windows.Media.Brushes.SlateGray;
     }
 
     private static IReadOnlyList<NotificationGroupItem> BuildGroupItems(IReadOnlyList<ScheduleListItem> items)

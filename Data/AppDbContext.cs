@@ -20,6 +20,9 @@ public class AppDbContext : DbContext
             .HasIndex(x => x.EndAt);
 
         modelBuilder.Entity<ScheduleItem>()
+            .HasIndex(x => new { x.StartAt, x.EndAt });
+
+        modelBuilder.Entity<ScheduleItem>()
             .Property(x => x.RowVersion)
             .IsRowVersion();
     }
