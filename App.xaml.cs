@@ -45,15 +45,21 @@ public partial class App : Application
             await AppHost.StartAsync();
 
             // DB 마이그레이션 안정화: DB 문제를 조기에 감지
-            using (var scope = AppHost.Services.CreateScope())
-            {
-                var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
-                await using var db = factory.CreateDbContext();
+            var config = AppHost.Services.GetRequiredService<IConfiguration>();
+            var enableAutoMigration = config.GetValue<bool?>("Database:EnableAutoMigration") ?? true;
 
-                var pending = await db.Database.GetPendingMigrationsAsync();
-                if (pending.Any())
+            if (enableAutoMigration)
+            {
+                using (var scope = AppHost.Services.CreateScope())
                 {
-                    await db.Database.MigrateAsync();
+                    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+                    await using var db = factory.CreateDbContext();
+
+                    var pending = await db.Database.GetPendingMigrationsAsync();
+                    if (pending.Any())
+                    {
+                        await db.Database.MigrateAsync();
+                    }
                 }
             }
 
@@ -101,5 +107,3 @@ public partial class App : Application
         }
     }
 }
-
-
