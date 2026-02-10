@@ -187,7 +187,10 @@ public class ScheduleService : IScheduleService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            var entry = ex.Entries.Single();
+            var entry = ex.Entries.FirstOrDefault();
+            if (entry is null)
+                throw new ConcurrencyConflictException(latest: null, isDeleted: false);
+
             var dbValues = await entry.GetDatabaseValuesAsync();
 
             if (dbValues is null)
@@ -225,7 +228,10 @@ public class ScheduleService : IScheduleService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            var entry = ex.Entries.Single();
+            var entry = ex.Entries.FirstOrDefault();
+            if (entry is null)
+                throw new ConcurrencyConflictException(latest: null, isDeleted: false);
+
             var dbValues = await entry.GetDatabaseValuesAsync();
 
             if (dbValues is null)
