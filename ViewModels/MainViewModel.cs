@@ -430,6 +430,7 @@ public partial class MainViewModel : ObservableObject
 
             await _scheduleService.UpdateAsync(vm.Result);
             await LoadSchedulesAsync(false);
+            await LoadSelectedDetailAsync();
         }
         catch (ConcurrencyConflictException ex)
         {
