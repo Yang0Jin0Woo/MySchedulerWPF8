@@ -164,6 +164,9 @@ public class ScheduleService : IScheduleService
 
     public async Task<ScheduleItem> UpdateAsync(ScheduleItem item)
     {
+        if (item.RowVersion is null)
+            throw new ConcurrencyConflictException(null, isDeleted: false);
+
         var utcItem = new ScheduleItem
         {
             Id = item.Id,
@@ -179,7 +182,18 @@ public class ScheduleService : IScheduleService
         };
 
         await using var db = _dbFactory.CreateDbContext();
-        db.Schedules.Update(utcItem);
+        db.Attach(utcItem);
+
+        var updateEntry = db.Entry(utcItem);
+        updateEntry.Property(x => x.Title).IsModified = true;
+        updateEntry.Property(x => x.Location).IsModified = true;
+        updateEntry.Property(x => x.Notes).IsModified = true;
+        updateEntry.Property(x => x.StartAt).IsModified = true;
+        updateEntry.Property(x => x.EndAt).IsModified = true;
+        updateEntry.Property(x => x.Priority).IsModified = true;
+        updateEntry.Property(x => x.IsAllDay).IsModified = true;
+
+        updateEntry.Property(x => x.RowVersion).OriginalValue = item.RowVersion;
 
         try
         {
