@@ -46,13 +46,13 @@ public class ScheduleService : IScheduleService
         var keyword = NormalizeKeyword(searchText);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
-            var keywordUpper = keyword.ToUpperInvariant();
+            var likePattern = $"%{EscapeLikePattern(keyword)}%";
             query = searchScope switch
             {
-                "제목" => query.Where(x => x.Title.ToUpper().Contains(keywordUpper)),
-                "장소" => query.Where(x => x.Location != null && x.Location.ToUpper().Contains(keywordUpper)),
-                _ => query.Where(x => x.Title.ToUpper().Contains(keywordUpper) ||
-                                      (x.Location != null && x.Location.ToUpper().Contains(keywordUpper))),
+                "제목" => query.Where(x => EF.Functions.Like(x.Title, likePattern, "\\")),
+                "장소" => query.Where(x => x.Location != null && EF.Functions.Like(x.Location, likePattern, "\\")),
+                _ => query.Where(x => EF.Functions.Like(x.Title, likePattern, "\\") ||
+                                      (x.Location != null && EF.Functions.Like(x.Location, likePattern, "\\"))),
             };
         }
 
@@ -300,6 +300,15 @@ public class ScheduleService : IScheduleService
             trimmed.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
         return collapsed;
+    }
+
+    private static string EscapeLikePattern(string value)
+    {
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_")
+            .Replace("[", "\\[");
     }
 }
 
