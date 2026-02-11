@@ -428,7 +428,8 @@ public partial class MainViewModel : ObservableObject
             if (win.ShowDialog() != true || vm.Result is null)
                 return;
 
-            await _scheduleService.UpdateAsync(vm.Result);
+            var updated = await _scheduleService.UpdateAsync(vm.Result);
+            vm.Result.RowVersion = updated.RowVersion;
             await LoadSchedulesAsync(false);
             await LoadSelectedDetailAsync();
         }

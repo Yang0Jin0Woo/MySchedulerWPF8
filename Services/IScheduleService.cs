@@ -23,7 +23,7 @@ public interface IScheduleService
         CancellationToken cancellationToken);
 
     Task<ScheduleItem> AddAsync(ScheduleItem item);
-    Task UpdateAsync(ScheduleItem item);
+    Task<ScheduleItem> UpdateAsync(ScheduleItem item);
     Task DeleteAsync(int id, byte[] rowVersion);
 
     byte[] BuildCsvBytes(IEnumerable<ScheduleListItem> items);

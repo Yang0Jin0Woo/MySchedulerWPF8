@@ -162,7 +162,7 @@ public class ScheduleService : IScheduleService
         return utcItem;
     }
 
-    public async Task UpdateAsync(ScheduleItem item)
+    public async Task<ScheduleItem> UpdateAsync(ScheduleItem item)
     {
         var utcItem = new ScheduleItem
         {
@@ -184,6 +184,9 @@ public class ScheduleService : IScheduleService
         try
         {
             await db.SaveChangesAsync();
+            utcItem.StartAt = TimeUtil.UtcToKorea(utcItem.StartAt);
+            utcItem.EndAt = TimeUtil.UtcToKorea(utcItem.EndAt);
+            return utcItem;
         }
         catch (DbUpdateConcurrencyException ex)
         {
