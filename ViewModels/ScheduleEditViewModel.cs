@@ -9,7 +9,6 @@ namespace MyScheduler.ViewModels;
 
 public partial class ScheduleEditViewModel : ObservableObject
 {
-    // ===== 기본 입력 =====
     [ObservableProperty] private string title = "";
     [ObservableProperty] private DateTime startDate;
     [ObservableProperty] private DateTime endDate;
@@ -19,26 +18,23 @@ public partial class ScheduleEditViewModel : ObservableObject
 
     [ObservableProperty] private string? errorMessage;
 
-    // 저장 결과 (OnSaveClick에서 Result != null && ErrorMessage == null이면 닫히는 구조)
     public ScheduleItem? Result { get; private set; }
 
-    // ===== 시간 선택(30분 단위) =====
-    // 00:00, 00:30, ... 23:30 (총 48개)
+    // 시간 선택(30분 단위)
     public IReadOnlyList<TimeSpan> TimeOptions { get; } =
         Enumerable.Range(0, 48).Select(i => TimeSpan.FromMinutes(i * 30)).ToList();
 
-    // 선택값(선택 전에는 null -> 저장 불가)
+    // 선택 전에는 null -> 저장 불가
     [ObservableProperty] private TimeSpan? startTime;
     [ObservableProperty] private TimeSpan? endTime;
 
-    // 오전/오후 자동 표시 (선택값 기반)
     public string StartAmPmText =>
         StartTime is null ? "" : (StartTime.Value.Hours < 12 ? "오전" : "오후");
 
     public string EndAmPmText =>
         EndTime is null ? "" : (EndTime.Value.Hours < 12 ? "오전" : "오후");
 
-    // StartTime/EndTime이 바뀌면 오전/오후 텍스트도 갱신되어야 함
+    // StartTime/EndTime이 바뀌면 오전/오후 텍스트 갱신
     partial void OnStartTimeChanged(TimeSpan? value)
     {
         OnPropertyChanged(nameof(StartAmPmText));
@@ -53,7 +49,6 @@ public partial class ScheduleEditViewModel : ObservableObject
     {
         if (existing is null)
         {
-            // 추가 모드: 날짜는 기본 세팅, 시간은 미선택(null)로 둬서 "빈칸" 상태로 시작
             StartDate = baseDate.Date;
             EndDate = baseDate.Date;
             StartTime = null;
@@ -61,12 +56,10 @@ public partial class ScheduleEditViewModel : ObservableObject
         }
         else
         {
-            // 수정 모드: 기존 값 복원
             Title = existing.Title;
             StartDate = existing.StartAt.Date;
             EndDate = existing.EndAt.Date;
 
-            // 기존 시간이 30분 단위가 아닐 수도 있으므로 가장 가까운 30분으로 보정(표시용)
             StartTime = SnapTo30Minutes(existing.StartAt.TimeOfDay);
             EndTime = SnapTo30Minutes(existing.EndAt.TimeOfDay);
 
@@ -88,7 +81,6 @@ public partial class ScheduleEditViewModel : ObservableObject
             return;
         }
 
-        // 시간 미선택 저장 금지
         if (StartTime is null)
         {
             ErrorMessage = "시작 시간을 선택해주세요.";
@@ -123,8 +115,7 @@ public partial class ScheduleEditViewModel : ObservableObject
 
     private static TimeSpan SnapTo30Minutes(TimeSpan time)
     {
-        // 30분 단위로 반올림(표시용)
-        // 예: 10:10 -> 10:00, 10:20 -> 10:30, 10:50 -> 11:00
+        // 30분 단위로 반올림
         var totalMinutes = (int)Math.Round(time.TotalMinutes / 30.0) * 30;
 
         // 하루 범위로 정규화

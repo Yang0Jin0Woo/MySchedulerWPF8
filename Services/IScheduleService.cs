@@ -28,4 +28,3 @@ public interface IScheduleService
 
     byte[] BuildCsvBytes(IEnumerable<ScheduleListItem> items);
 }
-

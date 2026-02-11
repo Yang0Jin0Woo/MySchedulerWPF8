@@ -33,10 +33,8 @@ public partial class App : Application
                     services.AddPooledDbContextFactory<AppDbContext>(opt =>
                         opt.UseSqlServer(conn));
 
-                    // Service (Repository 제거)
                     services.AddSingleton<IScheduleService, ScheduleService>();
 
-                    // UI
                     services.AddTransient<MainViewModel>();
                     services.AddTransient<MainWindow>();
                 })
@@ -44,7 +42,7 @@ public partial class App : Application
 
             await AppHost.StartAsync();
 
-            // DB 마이그레이션 안정화: DB 문제를 조기에 감지
+            // DB 마이그레이션 문제 감지
             var config = AppHost.Services.GetRequiredService<IConfiguration>();
             var enableAutoMigration = config.GetValue<bool?>("Database:EnableAutoMigration") ?? true;
 

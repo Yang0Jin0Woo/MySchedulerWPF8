@@ -311,7 +311,3 @@ public class ScheduleService : IScheduleService
             .Replace("[", "\\[");
     }
 }
-
-
-
-

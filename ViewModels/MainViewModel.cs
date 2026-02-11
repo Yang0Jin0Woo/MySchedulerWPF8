@@ -615,7 +615,12 @@ public partial class MainViewModel : ObservableObject
     {
         _clockTimer.Stop();
         _notificationTimer.Stop();
-        _notificationCts.Cancel();
+
+        if (!_notificationCts.IsCancellationRequested)
+            _notificationCts.Cancel();
+
+        _notificationCts.Dispose();
+        _notificationCts = new CancellationTokenSource();
     }
 
     [RelayCommand(CanExecute = nameof(HasPrevPage))]
