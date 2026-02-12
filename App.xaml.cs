@@ -34,6 +34,8 @@ public partial class App : Application
                         opt.UseSqlServer(conn));
 
                     services.AddSingleton<IScheduleService, ScheduleService>();
+                    services.AddSingleton<IDialogService, DialogService>();
+                    services.AddSingleton<IFileExportService, FileExportService>();
 
                     services.AddTransient<MainViewModel>();
                     services.AddTransient<MainWindow>();
@@ -79,11 +81,10 @@ public partial class App : Application
                 "- SSMS로 localhost\\SQLEXPRESS 접속 테스트\n" +
                 "- appsettings.json 연결 문자열 확인";
 
-            MessageBox.Show(
-                $"앱 초기화 중 오류가 발생했습니다.\n\n{ex.Message}\n\n{hint}",
+            var dialogService = AppHost?.Services.GetService<IDialogService>() ?? new DialogService();
+            dialogService.ShowError(
                 "초기화 실패",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                $"앱 초기화 중 오류가 발생했습니다.\n\n{ex.Message}\n\n{hint}");
 
             Shutdown(-1);
         }

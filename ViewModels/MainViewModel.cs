@@ -3,11 +3,9 @@ using CommunityToolkit.Mvvm.Input;
 using MyScheduler.Models;
 using MyScheduler.Services;
 using MyScheduler.Views;
-using Microsoft.Win32;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Diagnostics;
 using System.Threading;
@@ -21,10 +19,17 @@ namespace MyScheduler.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly IScheduleService _scheduleService;
+    private readonly IDialogService _dialogService;
+    private readonly IFileExportService _fileExportService;
 
-    public MainViewModel(IScheduleService scheduleService)
+    public MainViewModel(
+        IScheduleService scheduleService,
+        IDialogService dialogService,
+        IFileExportService fileExportService)
     {
         _scheduleService = scheduleService;
+        _dialogService = dialogService;
+        _fileExportService = fileExportService;
 
         _selectedSearchScope = SearchScopes.First();
 
@@ -466,11 +471,9 @@ public partial class MainViewModel : ObservableObject
         var id = SelectedScheduleDetail.Id;
         var rowVersion = SelectedScheduleDetail.RowVersion;
 
-        if (MessageBox.Show(
+        if (!_dialogService.Confirm(
                 "정말 삭제하시겠습니까?",
-                "삭제 확인",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question) != MessageBoxResult.Yes)
+                "삭제 확인"))
             return;
 
         IsBusy = true;
@@ -504,42 +507,36 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanExportCsv))]
-    private async Task ExportCsvAsync()
+    private async Task ExportCsvAsync(CancellationToken cancellationToken)
     {
         var rows = PagedSchedules.ToList();
 
         if (rows.Count == 0)
         {
-            MessageBox.Show(
+            _dialogService.ShowInfo(
                 "내보낼 일정이 없습니다.\n(검색/필터 결과가 비어있을 수 있습니다.)",
-                "CSV 내보내기",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                "CSV 내보내기");
             return;
         }
 
-        var dlg = new SaveFileDialog
-        {
-            Title = "CSV로 내보내기",
-            Filter = "CSV 파일 (*.csv)|*.csv",
-            FileName = $"MyScheduler_{SelectedDate:yyyyMMdd}.csv",
-            AddExtension = true,
-            DefaultExt = ".csv"
-        };
-
-        if (dlg.ShowDialog() != true)
+        var fileName = _dialogService.ShowSaveCsvDialog($"MyScheduler_{SelectedDate:yyyyMMdd}.csv");
+        if (string.IsNullOrWhiteSpace(fileName))
             return;
 
         try
         {
             var bytes = _scheduleService.BuildCsvBytes(rows);
-            await File.WriteAllBytesAsync(dlg.FileName, bytes);
+            await _fileExportService.WriteAllBytesAsync(fileName, bytes, cancellationToken);
 
-            MessageBox.Show(
-                $"CSV 저장이 완료되었습니다.\n\n{dlg.FileName}",
-                "CSV 내보내기",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            _dialogService.ShowInfo(
+                $"CSV 저장이 완료되었습니다.\n\n{fileName}",
+                "CSV 내보내기");
+        }
+        catch (OperationCanceledException)
+        {
+            _dialogService.ShowInfo(
+                "CSV 저장이 취소되었습니다.",
+                "CSV 내보내기");
         }
         catch (Exception ex)
         {
@@ -558,11 +555,9 @@ public partial class MainViewModel : ObservableObject
     {
         if (ex.IsDeleted)
         {
-            MessageBox.Show(
+            _dialogService.ShowWarning(
                 "해당 일정은 이미 삭제되었습니다.\n목록을 최신 상태로 갱신합니다.",
-                "동시성 충돌",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                "동시성 충돌");
 
             SelectedSchedule = null;
             SelectedScheduleDetail = null;
@@ -572,24 +567,18 @@ public partial class MainViewModel : ObservableObject
 
         if (ex.Latest is not null)
         {
-            MessageBox.Show(
+            _dialogService.ShowWarning(
                 "다른 곳에서 일정이 수정되었습니다.\n최신 데이터로 갱신합니다.",
-                "동시성 충돌",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                "동시성 충돌");
 
             SelectedScheduleDetail = ex.Latest;
             _ = LoadSchedulesAsync();
         }
     }
 
-    private static void ShowUserError(string title, string message)
+    private void ShowUserError(string title, string message)
     {
-        MessageBox.Show(
-            message,
-            title,
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+        _dialogService.ShowError(title, message);
     }
 
     private static string BuildDbHint(string action)
@@ -720,8 +709,6 @@ public partial class MainViewModel : ObservableObject
 
         if (ReferenceEquals(_activeGroupSource, item))
             CloseNotificationGroup();
-
-        ClearNotifiedKeys(item);
     }
 
     [RelayCommand]
@@ -1004,28 +991,6 @@ public partial class MainViewModel : ObservableObject
 
     private static string BuildNotificationKey(int scheduleId, DateTime startAt)
         => $"{scheduleId}:{startAt.Ticks}";
-
-    private void ClearNotifiedKeys(NotificationItem item)
-    {
-        var items = item.RelatedItems.Count > 0
-            ? item.RelatedItems
-            : new[]
-            {
-                new NotificationGroupItem
-                {
-                    ScheduleId = item.ScheduleId,
-                    Title = item.Title,
-                    StartAt = item.StartAt,
-                    EndAt = item.EndAt
-                }
-            };
-
-        foreach (var related in items)
-        {
-            var key = BuildNotificationKey(related.ScheduleId, related.StartAt);
-            _notifiedKeys.Remove(key);
-        }
-    }
 
     private void PruneNotifiedKeys(DateTime now)
     {
