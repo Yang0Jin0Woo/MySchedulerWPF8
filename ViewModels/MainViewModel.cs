@@ -1,90 +1,97 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MyScheduler.Models;
 using MyScheduler.Services;
-using MyScheduler.Views;
 using System;
 using System.Collections.ObjectModel;
-using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Threading;
-using System.Collections.Specialized;
 
 namespace MyScheduler.ViewModels;
 
-public partial class MainViewModel : ObservableObject
+public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IScheduleService _scheduleService;
     private readonly IDialogService _dialogService;
     private readonly IFileExportService _fileExportService;
+    private readonly IScheduleEditorDialogService _scheduleEditorDialogService;
+
+    private readonly ScheduleListStateViewModel _listState;
+    private readonly ClockViewModel _clockViewModel;
+    private readonly NotificationCenterViewModel _notificationCenterViewModel;
 
     public MainViewModel(
         IScheduleService scheduleService,
         IDialogService dialogService,
-        IFileExportService fileExportService)
+        IFileExportService fileExportService,
+        IScheduleEditorDialogService scheduleEditorDialogService)
     {
         _scheduleService = scheduleService;
         _dialogService = dialogService;
         _fileExportService = fileExportService;
+        _scheduleEditorDialogService = scheduleEditorDialogService;
 
-        _selectedSearchScope = SearchScopes.First();
+        _listState = new ScheduleListStateViewModel();
+        _clockViewModel = new ClockViewModel(_scheduleService);
+        _notificationCenterViewModel = new NotificationCenterViewModel(_scheduleService, () => _clockViewModel.NowKst);
+
+        _clockViewModel.PropertyChanged += OnClockPropertyChanged;
+        _notificationCenterViewModel.PropertyChanged += OnNotificationCenterPropertyChanged;
 
         SelectedDate = _scheduleService.GetKoreaNow().Date;
 
-        StartClock();
-        StartNotificationTimer();
+        _clockViewModel.Start();
+        _notificationCenterViewModel.Start();
         _ = LoadSchedulesAsync();
     }
 
     public ObservableCollection<ScheduleListItem> PagedSchedules { get; } = new();
 
-    public ObservableCollection<NotificationItem> ActiveNotifications { get; } = new();
-    public ObservableCollection<NotificationGroupItem> NotificationGroupItems { get; } = new();
+    public ObservableCollection<NotificationItem> ActiveNotifications => _notificationCenterViewModel.ActiveNotifications;
+    public ObservableCollection<NotificationGroupItem> NotificationGroupItems => _notificationCenterViewModel.NotificationGroupItems;
 
-    private bool _isNotificationGroupOpen;
     public bool IsNotificationGroupOpen
     {
-        get => _isNotificationGroupOpen;
-        set => SetProperty(ref _isNotificationGroupOpen, value);
+        get => _notificationCenterViewModel.IsNotificationGroupOpen;
+        set
+        {
+            if (_notificationCenterViewModel.IsNotificationGroupOpen == value) return;
+            _notificationCenterViewModel.IsNotificationGroupOpen = value;
+            OnPropertyChanged();
+        }
     }
 
-    public IEnumerable<NotificationItem> DisplayNotifications =>
-        ActiveNotifications.Take(3);
+    public IEnumerable<NotificationItem> DisplayNotifications => _notificationCenterViewModel.DisplayNotifications;
+    public int OverflowCount => _notificationCenterViewModel.OverflowCount;
+    public bool HasOverflow => _notificationCenterViewModel.HasOverflow;
 
-    public int OverflowCount => Math.Max(0, ActiveNotifications.Count - 3);
-    public bool HasOverflow => OverflowCount > 0;
+    public ObservableCollection<string> SearchScopes => _listState.SearchScopes;
 
-    public ObservableCollection<string> SearchScopes { get; } =
-        new() { "전체", "제목", "장소" };
-
-    private string _selectedSearchScope;
     public string SelectedSearchScope
     {
-        get => _selectedSearchScope;
+        get => _listState.SelectedSearchScope;
         set
         {
-            if (SetProperty(ref _selectedSearchScope, value))
-                ExportCsvCommand.NotifyCanExecuteChanged();
+            if (_listState.SelectedSearchScope == value) return;
+            _listState.SelectedSearchScope = value;
+            OnPropertyChanged();
+            ExportCsvCommand.NotifyCanExecuteChanged();
         }
     }
 
-    private string _searchText = "";
     public string SearchText
     {
-        get => _searchText;
+        get => _listState.SearchText;
         set
         {
-            if (SetProperty(ref _searchText, value))
-                ExportCsvCommand.NotifyCanExecuteChanged();
+            if (_listState.SearchText == value) return;
+            _listState.SearchText = value;
+            OnPropertyChanged();
+            ExportCsvCommand.NotifyCanExecuteChanged();
         }
     }
-
-    private string _appliedSearchText = "";
-    private string _appliedSearchScope = "전체";
 
     private DateTime _selectedDate;
     public DateTime SelectedDate
@@ -101,12 +108,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private DateTime _nowKst;
-    public DateTime NowKst
-    {
-        get => _nowKst;
-        private set => SetProperty(ref _nowKst, value);
-    }
+    public DateTime NowKst => _clockViewModel.NowKst;
 
     private ScheduleListItem? _selectedSchedule;
     public ScheduleListItem? SelectedSchedule
@@ -186,38 +188,15 @@ public partial class MainViewModel : ObservableObject
     private int _detailRequestVersion;
     private CancellationTokenSource? _listCts;
     private CancellationTokenSource? _detailCts;
-
-    private readonly DispatcherTimer _notificationTimer = new();
-    private bool _isNotificationScanning;
-    private readonly Dictionary<string, DateTime> _notifiedKeys = new();
-    private bool _startupNotificationShown;
-    private CancellationTokenSource _notificationCts = new();
-    private NotificationItem? _activeGroupSource;
-    private bool _notificationTimerAligned;
-
-    private const int NotificationLeadMinutes = 10;
-    private static readonly TimeSpan NotificationScanInterval = TimeSpan.FromMinutes(5);
-    private const int MaxActiveNotifications = 20;
+    private bool _isDisposed;
 
     private const int PageSize = 10;
-    private int _currentPage = 1;
-    public int CurrentPage
-    {
-        get => _currentPage;
-        private set => SetProperty(ref _currentPage, value);
-    }
 
-    private int _totalPages = 1;
-    public int TotalPages
-    {
-        get => _totalPages;
-        private set => SetProperty(ref _totalPages, value);
-    }
-
-    public bool HasPrevPage => CurrentPage > 1;
-    public bool HasNextPage => CurrentPage < TotalPages;
-
-    public ObservableCollection<int> PageNumbers { get; } = new();
+    public int CurrentPage => _listState.CurrentPage;
+    public int TotalPages => _listState.TotalPages;
+    public bool HasPrevPage => _listState.HasPrevPage;
+    public bool HasNextPage => _listState.HasNextPage;
+    public ObservableCollection<int> PageNumbers => _listState.PageNumbers;
 
     private bool CanEditOrDelete()
         => !IsBusy && !IsLoadingList && !IsLoadingDetail && SelectedScheduleDetail is not null;
@@ -227,28 +206,29 @@ public partial class MainViewModel : ObservableObject
 
     private void ResetToFirstPageAndReload()
     {
-        CurrentPage = 1;
+        _listState.MoveToFirstPage();
+        UpdatePagingUi();
         _ = LoadSchedulesAsync();
     }
 
     [RelayCommand]
     private void ApplySearch()
     {
-        _appliedSearchText = SearchText ?? "";
-        _appliedSearchScope = SelectedSearchScope;
-        ResetToFirstPageAndReload();
+        _listState.ApplySearch();
+        UpdatePagingUi();
+        _ = LoadSchedulesAsync();
         ExportCsvCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
     private void ClearSearch()
     {
-        SearchText = "";
-        SelectedSearchScope = SearchScopes.First();
-        _appliedSearchText = SearchText;
-        _appliedSearchScope = SelectedSearchScope;
+        _listState.ClearSearch();
+        OnPropertyChanged(nameof(SearchText));
+        OnPropertyChanged(nameof(SelectedSearchScope));
+        UpdatePagingUi();
+        _ = LoadSchedulesAsync();
         ExportCsvCommand.NotifyCanExecuteChanged();
-        ResetToFirstPageAndReload();
     }
 
     [RelayCommand]
@@ -266,21 +246,20 @@ public partial class MainViewModel : ObservableObject
 
         var prevId = SelectedSchedule?.Id;
         var requestedPage = CurrentPage;
+        var (appliedText, appliedScope) = _listState.GetAppliedSearch();
 
         try
         {
             var (items, totalCount) = await _scheduleService.GetListByDateAsync(
                 SelectedDate,
-                _appliedSearchText,
-                _appliedSearchScope,
+                appliedText,
+                appliedScope,
                 CurrentPage,
                 PageSize,
                 token);
             if (version != _listRequestVersion) return;
 
-            TotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
-            if (CurrentPage > TotalPages) CurrentPage = TotalPages;
-            if (CurrentPage < 1) CurrentPage = 1;
+            _listState.SetTotalCount(totalCount, PageSize);
 
             if (CurrentPage != requestedPage)
             {
@@ -396,17 +375,10 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var vm = new ScheduleEditViewModel(SelectedDate);
-            var win = new ScheduleEditWindow
-            {
-                Owner = Application.Current.MainWindow,
-                DataContext = vm
-            };
-
-            if (win.ShowDialog() != true || vm.Result is null)
+            if (!_scheduleEditorDialogService.TryOpen(SelectedDate, null, out var result) || result is null)
                 return;
 
-            var created = await _scheduleService.AddAsync(vm.Result);
+            var created = await _scheduleService.AddAsync(result);
             await LoadSchedulesAsync(false);
 
             SelectedSchedule = PagedSchedules.FirstOrDefault(x => x.Id == created.Id);
@@ -432,18 +404,11 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var vm = new ScheduleEditViewModel(SelectedDate, SelectedScheduleDetail);
-            var win = new ScheduleEditWindow
-            {
-                Owner = Application.Current.MainWindow,
-                DataContext = vm
-            };
-
-            if (win.ShowDialog() != true || vm.Result is null)
+            if (!_scheduleEditorDialogService.TryOpen(SelectedDate, SelectedScheduleDetail, out var result) || result is null)
                 return;
 
-            var updated = await _scheduleService.UpdateAsync(vm.Result);
-            vm.Result.RowVersion = updated.RowVersion;
+            var updated = await _scheduleService.UpdateAsync(result);
+            result.RowVersion = updated.RowVersion;
             await LoadSchedulesAsync(false);
             await LoadSelectedDetailAsync();
         }
@@ -595,456 +560,109 @@ public partial class MainViewModel : ObservableObject
             "- appsettings.json의 ConnectionStrings:Default 확인";
     }
 
-    private readonly DispatcherTimer _clockTimer = new();
-
-    private void StartClock()
-    {
-        _clockTimer.Interval = TimeSpan.FromSeconds(1);
-        _clockTimer.Tick += (_, __) =>
-        {
-            NowKst = _scheduleService.UtcToKorea(DateTime.UtcNow);
-        };
-
-        NowKst = _scheduleService.UtcToKorea(DateTime.UtcNow);
-        _clockTimer.Start();
-    }
-
     public void StopClock()
     {
-        _clockTimer.Stop();
-        _notificationTimer.Stop();
+        _clockViewModel.PropertyChanged -= OnClockPropertyChanged;
+        _notificationCenterViewModel.PropertyChanged -= OnNotificationCenterPropertyChanged;
 
-        if (!_notificationCts.IsCancellationRequested)
-            _notificationCts.Cancel();
+        _clockViewModel.Stop();
+        _notificationCenterViewModel.Stop();
 
-        _notificationCts.Dispose();
-        _notificationCts = new CancellationTokenSource();
+        _listCts?.Cancel();
+        _listCts?.Dispose();
+        _listCts = null;
+
+        _detailCts?.Cancel();
+        _detailCts?.Dispose();
+        _detailCts = null;
+    }
+
+    public void Dispose()
+    {
+        if (_isDisposed) return;
+
+        StopClock();
+        _isDisposed = true;
+        GC.SuppressFinalize(this);
     }
 
     [RelayCommand(CanExecute = nameof(HasPrevPage))]
     private void PrevPage()
     {
-        if (CurrentPage <= 1) return;
-        CurrentPage -= 1;
+        if (!_listState.MovePrevPage()) return;
+        UpdatePagingUi();
         _ = LoadSchedulesAsync(false);
     }
 
     [RelayCommand(CanExecute = nameof(HasNextPage))]
     private void NextPage()
     {
-        if (CurrentPage >= TotalPages) return;
-        CurrentPage += 1;
+        if (!_listState.MoveNextPage()) return;
+        UpdatePagingUi();
         _ = LoadSchedulesAsync(false);
     }
 
     [RelayCommand]
     private void GoToPage(int page)
     {
-        if (page < 1 || page > TotalPages) return;
-        if (CurrentPage == page) return;
-        CurrentPage = page;
+        if (!_listState.GoToPage(page)) return;
+        UpdatePagingUi();
         _ = LoadSchedulesAsync(false);
     }
 
     private void UpdatePagingUi()
     {
-        UpdatePageNumbers();
-
+        OnPropertyChanged(nameof(CurrentPage));
+        OnPropertyChanged(nameof(TotalPages));
         OnPropertyChanged(nameof(HasPrevPage));
         OnPropertyChanged(nameof(HasNextPage));
         PrevPageCommand.NotifyCanExecuteChanged();
         NextPageCommand.NotifyCanExecuteChanged();
     }
 
-    private void UpdatePageNumbers()
-    {
-        PageNumbers.Clear();
-        const int windowSize = 5;
-        if (TotalPages <= 0) return;
-
-        var half = windowSize / 2;
-        var start = CurrentPage - half;
-        var end = CurrentPage + half;
-
-        if (start < 1)
-        {
-            end += 1 - start;
-            start = 1;
-        }
-
-        if (end > TotalPages)
-        {
-            start -= end - TotalPages;
-            end = TotalPages;
-        }
-
-        if (start < 1) start = 1;
-
-        for (var i = start; i <= end && PageNumbers.Count < windowSize; i++)
-            PageNumbers.Add(i);
-    }
-
     [RelayCommand]
     private async Task OpenNotificationAsync(NotificationItem item)
     {
-        if (item is null) return;
-
-        if (item.HasGroup)
-        {
-            ShowNotificationGroup(item);
-            return;
-        }
-
-        await NavigateToScheduleAsync(item.ScheduleId, item.StartAt.Date);
-        DismissNotification(item);
+        await _notificationCenterViewModel.OpenNotificationAsync(item, NavigateToScheduleAsync);
     }
 
     [RelayCommand]
     private void DismissNotification(NotificationItem item)
     {
-        if (item is null) return;
-
-        if (ActiveNotifications.Contains(item))
-            ActiveNotifications.Remove(item);
-
-        if (ReferenceEquals(_activeGroupSource, item))
-            CloseNotificationGroup();
+        _notificationCenterViewModel.DismissNotification(item);
     }
 
     [RelayCommand]
     private async Task OpenGroupedNotificationAsync(NotificationGroupItem item)
     {
-        if (item is null) return;
-
-        var groupSource = _activeGroupSource;
-        CloseNotificationGroup();
-
-        if (groupSource is not null)
-            DismissNotification(groupSource);
-
-        await NavigateToScheduleAsync(item.ScheduleId, item.StartAt.Date);
+        await _notificationCenterViewModel.OpenGroupedNotificationAsync(item, NavigateToScheduleAsync);
     }
 
     [RelayCommand]
     private void CloseNotificationGroup()
     {
-        _activeGroupSource = null;
-        NotificationGroupItems.Clear();
-        IsNotificationGroupOpen = false;
+        _notificationCenterViewModel.CloseNotificationGroup();
     }
 
-    private void StartNotificationTimer()
+    private void OnClockPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_notificationCts.IsCancellationRequested)
-        {
-            _notificationCts.Dispose();
-            _notificationCts = new CancellationTokenSource();
-        }
-
-        ActiveNotifications.CollectionChanged -= OnActiveNotificationsCollectionChanged;
-        ActiveNotifications.CollectionChanged += OnActiveNotificationsCollectionChanged;
-
-        _notificationTimer.Stop();
-        _notificationTimerAligned = false;
-        _notificationTimer.Tick -= NotificationTimerTick;
-        _notificationTimer.Tick += NotificationTimerTick;
-        _notificationTimer.Interval = GetNotificationAlignDelay(NowKst);
-        _notificationTimer.Start();
-        _ = ScanNotificationsAsync();
-        _ = ShowStartupNotificationAsync();
+        if (e.PropertyName == nameof(ClockViewModel.NowKst))
+            OnPropertyChanged(nameof(NowKst));
     }
 
-    private void OnActiveNotificationsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnNotificationCenterPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        OnPropertyChanged(nameof(DisplayNotifications));
-        OnPropertyChanged(nameof(OverflowCount));
-        OnPropertyChanged(nameof(HasOverflow));
-    }
+        if (e.PropertyName == nameof(NotificationCenterViewModel.IsNotificationGroupOpen))
+            OnPropertyChanged(nameof(IsNotificationGroupOpen));
 
-    private TimeSpan GetNotificationAlignDelay(DateTime now)
-    {
-        var remainderMs = ((now.Second % 30) * 1000) + now.Millisecond;
-        var delayMs = (30000 - remainderMs) % 30000;
-        return TimeSpan.FromMilliseconds(delayMs);
-    }
+        if (e.PropertyName == nameof(NotificationCenterViewModel.DisplayNotifications))
+            OnPropertyChanged(nameof(DisplayNotifications));
 
-    private async void NotificationTimerTick(object? sender, EventArgs e)
-    {
-        if (!_notificationTimerAligned)
-        {
-            _notificationTimerAligned = true;
-            _notificationTimer.Interval = NotificationScanInterval;
-        }
+        if (e.PropertyName == nameof(NotificationCenterViewModel.OverflowCount))
+            OnPropertyChanged(nameof(OverflowCount));
 
-        await ScanNotificationsAsync();
-    }
-
-    private void ShowNotificationGroup(NotificationItem item)
-    {
-        _activeGroupSource = item;
-        NotificationGroupItems.Clear();
-
-        foreach (var related in item.RelatedItems)
-            NotificationGroupItems.Add(related);
-
-        IsNotificationGroupOpen = NotificationGroupItems.Count > 0;
-    }
-
-    private async Task ScanNotificationsAsync()
-    {
-        if (_isNotificationScanning) return;
-        _isNotificationScanning = true;
-
-        try
-        {
-            var now = NowKst;
-            PruneNotifiedKeys(now);
-            PruneActiveNotifications(now);
-
-            var targetStart = now;
-            var targetEnd = now.AddMinutes(NotificationLeadMinutes);
-
-            var upcoming = await _scheduleService.GetUpcomingAsync(
-                targetStart,
-                targetEnd,
-                _notificationCts.Token);
-
-            if (upcoming.Count > 0)
-            {
-                var fresh = upcoming
-                    .Where(x => !_notifiedKeys.ContainsKey(BuildNotificationKey(x.Id, x.StartAt)))
-                    .ToList();
-
-                if (fresh.Count > 0)
-                {
-                    if (TryMergeIntoLatestNotification(fresh, targetStart, targetEnd, now))
-                        return;
-
-                    var groupItems = BuildGroupItems(upcoming);
-                    var first = upcoming[0];
-                    var additional = Math.Max(0, upcoming.Count - 1);
-                    AddNotification(first, now, markNotified: true, additionalCount: additional, relatedItems: groupItems);
-
-                    for (var i = 1; i < upcoming.Count; i++)
-                    {
-                        var key = BuildNotificationKey(upcoming[i].Id, upcoming[i].StartAt);
-                        if (!_notifiedKeys.ContainsKey(key))
-                            _notifiedKeys[key] = now;
-                    }
-                }
-            }
-        }
-        catch
-        {
-            Debug.WriteLine("알림 스캔 중 오류 발생");
-        }
-        finally
-        {
-            _isNotificationScanning = false;
-        }
-    }
-
-    private async Task ShowStartupNotificationAsync()
-    {
-        if (_startupNotificationShown) return;
-        _startupNotificationShown = true;
-
-        try
-        {
-            var now = NowKst;
-            var upcoming = await _scheduleService.GetUpcomingAsync(
-                now,
-                now.AddMinutes(NotificationLeadMinutes),
-                _notificationCts.Token);
-
-            var first = upcoming.FirstOrDefault();
-            if (first is null) return;
-
-            var additional = Math.Max(0, upcoming.Count - 1);
-            var groupItems = BuildGroupItems(upcoming);
-            AddNotification(first, now, markNotified: true, additionalCount: additional, relatedItems: groupItems);
-        }
-        catch
-        {
-            Debug.WriteLine("시작 알림 조회 중 오류 발생");
-        }
-    }
-
-    private void AddNotification(
-        ScheduleListItem item,
-        DateTime now,
-        bool markNotified,
-        int additionalCount,
-        IReadOnlyList<NotificationGroupItem> relatedItems)
-    {
-        var key = BuildNotificationKey(item.Id, item.StartAt);
-        if (_notifiedKeys.ContainsKey(key)) return;
-
-        if (markNotified)
-            _notifiedKeys[key] = now;
-
-        ActiveNotifications.Insert(0, new NotificationItem
-        {
-            ScheduleId = item.Id,
-            Title = item.Title,
-            StartAt = item.StartAt,
-            EndAt = item.EndAt,
-            AccentBrush = PickAccentBrush(now, item.StartAt),
-            AdditionalCount = additionalCount,
-            RelatedItems = relatedItems
-        });
-
-        while (ActiveNotifications.Count > MaxActiveNotifications)
-            ActiveNotifications.RemoveAt(ActiveNotifications.Count - 1);
-    }
-
-    private bool TryMergeIntoLatestNotification(IReadOnlyList<ScheduleListItem> fresh, DateTime windowStart, DateTime windowEnd, DateTime now)
-    {
-        if (ActiveNotifications.Count == 0) return false;
-
-        var existing = ActiveNotifications[0];
-        if (existing.StartAt < windowStart || existing.StartAt >= windowEnd)
-            return false;
-
-        foreach (var item in fresh)
-        {
-            var key = BuildNotificationKey(item.Id, item.StartAt);
-            if (!_notifiedKeys.ContainsKey(key))
-                _notifiedKeys[key] = now;
-        }
-
-        var merged = MergeNotificationItems(existing, fresh);
-        ActiveNotifications.RemoveAt(0);
-        ActiveNotifications.Insert(0, merged);
-
-        if (ReferenceEquals(_activeGroupSource, existing))
-        {
-            _activeGroupSource = merged;
-            RefreshNotificationGroup(merged);
-        }
-
-        return true;
-    }
-
-    private static NotificationItem MergeNotificationItems(NotificationItem existing, IReadOnlyList<ScheduleListItem> fresh)
-    {
-        var map = new Dictionary<string, NotificationGroupItem>();
-
-        foreach (var item in ToGroupItems(existing))
-            map[BuildNotificationKey(item.ScheduleId, item.StartAt)] = item;
-
-        foreach (var item in fresh)
-        {
-            var key = BuildNotificationKey(item.Id, item.StartAt);
-            if (!map.ContainsKey(key))
-            {
-                map[key] = new NotificationGroupItem
-                {
-                    ScheduleId = item.Id,
-                    Title = item.Title,
-                    StartAt = item.StartAt,
-                    EndAt = item.EndAt
-                };
-            }
-        }
-
-        var list = map.Values.OrderBy(x => x.StartAt).ToList();
-        var additional = Math.Max(0, list.Count - 1);
-
-        return new NotificationItem
-        {
-            ScheduleId = existing.ScheduleId,
-            Title = existing.Title,
-            StartAt = existing.StartAt,
-            EndAt = existing.EndAt,
-            AccentBrush = existing.AccentBrush,
-            AdditionalCount = additional,
-            RelatedItems = list
-        };
-    }
-
-    private static IReadOnlyList<NotificationGroupItem> ToGroupItems(NotificationItem item)
-    {
-        if (item.RelatedItems.Count > 0)
-            return item.RelatedItems;
-
-        return new[]
-        {
-            new NotificationGroupItem
-            {
-                ScheduleId = item.ScheduleId,
-                Title = item.Title,
-                StartAt = item.StartAt,
-                EndAt = item.EndAt
-            }
-        };
-    }
-
-    private void RefreshNotificationGroup(NotificationItem item)
-    {
-        if (!IsNotificationGroupOpen) return;
-
-        NotificationGroupItems.Clear();
-        foreach (var related in item.RelatedItems)
-            NotificationGroupItems.Add(related);
-    }
-
-    private static string BuildNotificationKey(int scheduleId, DateTime startAt)
-        => $"{scheduleId}:{startAt.Ticks}";
-
-    private void PruneNotifiedKeys(DateTime now)
-    {
-        if (_notifiedKeys.Count == 0) return;
-
-        var threshold = now.AddHours(-6);
-        var expired = _notifiedKeys.Where(x => x.Value < threshold).Select(x => x.Key).ToList();
-        foreach (var key in expired)
-            _notifiedKeys.Remove(key);
-    }
-
-    private void PruneActiveNotifications(DateTime now)
-    {
-        if (ActiveNotifications.Count == 0) return;
-
-        var threshold = now.AddMinutes(-1);
-        for (var i = ActiveNotifications.Count - 1; i >= 0; i--)
-        {
-            if (ActiveNotifications[i].StartAt < threshold)
-                ActiveNotifications.RemoveAt(i);
-        }
-    }
-
-    private static System.Windows.Media.Brush PickAccentBrush(DateTime now, DateTime startAt)
-    {
-        var minutesLeft = (startAt - now).TotalMinutes;
-
-        if (minutesLeft <= 2)
-            return System.Windows.Media.Brushes.OrangeRed;
-
-        if (minutesLeft <= 5)
-            return System.Windows.Media.Brushes.Orange;
-
-        if (minutesLeft <= 10)
-            return System.Windows.Media.Brushes.DodgerBlue;
-
-        return System.Windows.Media.Brushes.SlateGray;
-    }
-
-    private static IReadOnlyList<NotificationGroupItem> BuildGroupItems(IReadOnlyList<ScheduleListItem> items)
-    {
-        var list = new List<NotificationGroupItem>(items.Count);
-        foreach (var item in items)
-        {
-            list.Add(new NotificationGroupItem
-            {
-                ScheduleId = item.Id,
-                Title = item.Title,
-                StartAt = item.StartAt,
-                EndAt = item.EndAt
-            });
-        }
-
-        return list;
+        if (e.PropertyName == nameof(NotificationCenterViewModel.HasOverflow))
+            OnPropertyChanged(nameof(HasOverflow));
     }
 
     private bool _suppressDateReload;

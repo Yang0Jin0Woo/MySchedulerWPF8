@@ -45,9 +45,14 @@ User
  ↓
 View (XAML: DataBinding / Command Trigger)
  ↓
-ViewModel (상태/Command, 비동기 UI 갱신 제어(requestVersion), Busy/Loading)
+MainViewModel (화면 조합/오케스트레이션)
  ↓
-Service (업무 규칙, UTC↔KST 변환, 동시성 충돌 감지/예외)
+Sub ViewModels
+- ScheduleListStateViewModel (검색/페이징 상태)
+- ClockViewModel (현재 시각 갱신)
+- NotificationCenterViewModel (알림 스캔/그룹/표시)
+ ↓
+Service (업무 규칙, UTC↔KST 변환, 동시성 충돌 감지/예외, 다이얼로그 추상화)
  ↓
 DbContextFactory (IDbContextFactory<AppDbContext>)
  ↓
@@ -58,6 +63,7 @@ SQL Server (MySchedulerDb)
 
 ```
 
+- MainViewModel이 화면 흐름을 조합하고, 하위 ViewModel(검색/페이징, 시계, 알림)과 Service가 각각 단일 책임을 담당하는 구조
 - ViewModel과 Service를 중심으로 UI 상태와 업무 규칙을 분리하고 DbContextFactory 기반 데이터 접근을 통해 WPF 환경에 적합한 실행 안정성을 확보한 구조
 - DbContextFactory를 사용하여 필요할 때마다 DbContext 인스턴스를 생성/폐기하며 데이터 접근을 관리
 	- 안전한 데이터 접근을 위해 IDbContextFactory<AppDbContext> 사용
@@ -94,7 +100,7 @@ SQL Server (MySchedulerDb)
 - 일정 알림(앱 실행 중 배너)
   - 우측 하단 현재 시간 기준 10분 내 일정 알림(5분 주기 스캔)
   - 같은 스캔 윈도우의 여러 일정은 1개 배너로 묶어 표시(`외 N건`), 클릭 시 관련 일정 목록 표시
-  - 오른쪽 하단 최대 3개 스택(+N 집계), 닫기 시 해당 일정은 재알림 가능
+  - 오른쪽 하단 최대 3개 스택(+N 집계), 닫아도 동일 일정은 notified 키 만료 전까지 재알림 제한(기본 6시간)
 
  
 ---

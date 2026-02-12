@@ -18,10 +18,10 @@ namespace MyScheduler
         {
             InitializeComponent();
 
-            Closing += (_, __) =>
+            Closed += (_, __) =>
             {
-                if (DataContext is MainViewModel vm)
-                    vm.StopClock();
+                if (DataContext is IDisposable disposable)
+                    disposable.Dispose();
             };
         }
     }
