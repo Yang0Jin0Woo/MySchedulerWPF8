@@ -259,6 +259,7 @@ public partial class MainViewModel : ObservableObject
             IsLoadingList = true;
 
         var prevId = SelectedSchedule?.Id;
+        var requestedPage = CurrentPage;
 
         try
         {
@@ -271,13 +272,20 @@ public partial class MainViewModel : ObservableObject
                 token);
             if (version != _listRequestVersion) return;
 
-            PagedSchedules.Clear();
-            foreach (var item in items)
-                PagedSchedules.Add(item);
-
             TotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
             if (CurrentPage > TotalPages) CurrentPage = TotalPages;
             if (CurrentPage < 1) CurrentPage = 1;
+
+            if (CurrentPage != requestedPage)
+            {
+                UpdatePagingUi();
+                await LoadSchedulesAsync(showLoading);
+                return;
+            }
+
+            PagedSchedules.Clear();
+            foreach (var item in items)
+                PagedSchedules.Add(item);
 
             if (PagedSchedules.Count == 0)
             {
