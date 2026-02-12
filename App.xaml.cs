@@ -37,6 +37,10 @@ public partial class App : Application
                     services.AddSingleton<IDialogService, DialogService>();
                     services.AddSingleton<IFileExportService, FileExportService>();
                     services.AddSingleton<IScheduleEditorDialogService, ScheduleEditorDialogService>();
+                    services.AddSingleton<INotificationCenterFactory, NotificationCenterFactory>();
+
+                    services.AddTransient<ScheduleListStateViewModel>();
+                    services.AddTransient<ClockViewModel>();
 
                     services.AddTransient<MainViewModel>();
                     services.AddTransient<MainWindow>();

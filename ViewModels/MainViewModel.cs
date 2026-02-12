@@ -17,6 +17,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IDialogService _dialogService;
     private readonly IFileExportService _fileExportService;
     private readonly IScheduleEditorDialogService _scheduleEditorDialogService;
+    private readonly INotificationCenterFactory _notificationCenterFactory;
 
     private readonly ScheduleListStateViewModel _listState;
     private readonly ClockViewModel _clockViewModel;
@@ -26,16 +27,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IScheduleService scheduleService,
         IDialogService dialogService,
         IFileExportService fileExportService,
-        IScheduleEditorDialogService scheduleEditorDialogService)
+        IScheduleEditorDialogService scheduleEditorDialogService,
+        ScheduleListStateViewModel listStateViewModel,
+        ClockViewModel clockViewModel,
+        INotificationCenterFactory notificationCenterFactory)
     {
         _scheduleService = scheduleService;
         _dialogService = dialogService;
         _fileExportService = fileExportService;
         _scheduleEditorDialogService = scheduleEditorDialogService;
+        _notificationCenterFactory = notificationCenterFactory;
 
-        _listState = new ScheduleListStateViewModel();
-        _clockViewModel = new ClockViewModel(_scheduleService);
-        _notificationCenterViewModel = new NotificationCenterViewModel(_scheduleService, () => _clockViewModel.NowKst);
+        _listState = listStateViewModel;
+        _clockViewModel = clockViewModel;
+        _notificationCenterViewModel = _notificationCenterFactory.Create(() => _clockViewModel.NowKst);
 
         _clockViewModel.PropertyChanged += OnClockPropertyChanged;
         _notificationCenterViewModel.PropertyChanged += OnNotificationCenterPropertyChanged;
