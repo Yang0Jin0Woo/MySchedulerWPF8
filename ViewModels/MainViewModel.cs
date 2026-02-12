@@ -720,10 +720,11 @@ public partial class MainViewModel : ObservableObject
     {
         if (item is null) return;
 
+        var groupSource = _activeGroupSource;
         CloseNotificationGroup();
 
-        if (_activeGroupSource is not null)
-            DismissNotification(_activeGroupSource);
+        if (groupSource is not null)
+            DismissNotification(groupSource);
 
         await NavigateToScheduleAsync(item.ScheduleId, item.StartAt.Date);
     }
