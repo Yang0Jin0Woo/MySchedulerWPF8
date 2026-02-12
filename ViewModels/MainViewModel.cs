@@ -14,6 +14,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using System.Collections.Specialized;
 
 namespace MyScheduler.ViewModels;
 
@@ -753,12 +754,8 @@ public partial class MainViewModel : ObservableObject
             _notificationCts = new CancellationTokenSource();
         }
 
-        ActiveNotifications.CollectionChanged += (_, __) =>
-        {
-            OnPropertyChanged(nameof(DisplayNotifications));
-            OnPropertyChanged(nameof(OverflowCount));
-            OnPropertyChanged(nameof(HasOverflow));
-        };
+        ActiveNotifications.CollectionChanged -= OnActiveNotificationsCollectionChanged;
+        ActiveNotifications.CollectionChanged += OnActiveNotificationsCollectionChanged;
 
         _notificationTimer.Stop();
         _notificationTimerAligned = false;
@@ -768,6 +765,13 @@ public partial class MainViewModel : ObservableObject
         _notificationTimer.Start();
         _ = ScanNotificationsAsync();
         _ = ShowStartupNotificationAsync();
+    }
+
+    private void OnActiveNotificationsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(DisplayNotifications));
+        OnPropertyChanged(nameof(OverflowCount));
+        OnPropertyChanged(nameof(HasOverflow));
     }
 
     private TimeSpan GetNotificationAlignDelay(DateTime now)
