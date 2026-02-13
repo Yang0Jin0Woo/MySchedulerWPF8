@@ -16,7 +16,7 @@ namespace MyScheduler.ViewModels;
 public partial class NotificationCenterViewModel : ObservableObject
 {
     private readonly IScheduleService _scheduleService;
-    private readonly Func<DateTime> _nowProvider;
+    private readonly ITimeService _timeService;
     private readonly DispatcherTimer _notificationTimer = new();
 
     private bool _isNotificationScanning;
@@ -40,10 +40,10 @@ public partial class NotificationCenterViewModel : ObservableObject
     public int OverflowCount => Math.Max(0, ActiveNotifications.Count - 3);
     public bool HasOverflow => OverflowCount > 0;
 
-    public NotificationCenterViewModel(IScheduleService scheduleService, Func<DateTime> nowProvider)
+    public NotificationCenterViewModel(IScheduleService scheduleService, ITimeService timeService)
     {
         _scheduleService = scheduleService;
-        _nowProvider = nowProvider;
+        _timeService = timeService;
     }
 
     public void Start()
@@ -61,7 +61,7 @@ public partial class NotificationCenterViewModel : ObservableObject
         _notificationTimerAligned = false;
         _notificationTimer.Tick -= NotificationTimerTick;
         _notificationTimer.Tick += NotificationTimerTick;
-        _notificationTimer.Interval = GetNotificationAlignDelay(_nowProvider());
+        _notificationTimer.Interval = GetNotificationAlignDelay(_timeService.GetKoreaNow());
         _notificationTimer.Start();
 
         _ = ScanNotificationsAsync();
@@ -169,7 +169,7 @@ public partial class NotificationCenterViewModel : ObservableObject
 
         try
         {
-            var now = _nowProvider();
+            var now = _timeService.GetKoreaNow();
             PruneNotifiedKeys(now);
             PruneActiveNotifications(now);
 
@@ -223,7 +223,7 @@ public partial class NotificationCenterViewModel : ObservableObject
 
         try
         {
-            var now = _nowProvider();
+            var now = _timeService.GetKoreaNow();
             var upcoming = await _scheduleService.GetUpcomingAsync(
                 now,
                 now.AddMinutes(NotificationLeadMinutes),

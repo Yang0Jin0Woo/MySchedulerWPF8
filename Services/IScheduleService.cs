@@ -5,9 +5,6 @@ namespace MyScheduler.Services;
 
 public interface IScheduleService
 {
-    DateTime GetKoreaNow();
-    DateTime UtcToKorea(DateTime utc);
-
     Task<(List<ScheduleListItem> Items, int TotalCount)> GetListByDateAsync(
         DateTime date,
         string? searchText,
@@ -25,6 +22,4 @@ public interface IScheduleService
     Task<ScheduleItem> AddAsync(ScheduleItem item);
     Task<ScheduleItem> UpdateAsync(ScheduleItem item);
     Task DeleteAsync(int id, byte[] rowVersion);
-
-    byte[] BuildCsvBytes(IEnumerable<ScheduleListItem> items);
 }

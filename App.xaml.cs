@@ -33,14 +33,19 @@ public partial class App : Application
                     services.AddPooledDbContextFactory<AppDbContext>(opt =>
                         opt.UseSqlServer(conn));
 
+                    services.AddSingleton<ITimeService, TimeService>();
                     services.AddSingleton<IScheduleService, ScheduleService>();
+                    services.AddSingleton<IScheduleCsvService, ScheduleCsvService>();
                     services.AddSingleton<IDialogService, DialogService>();
                     services.AddSingleton<IFileExportService, FileExportService>();
                     services.AddSingleton<IScheduleEditorDialogService, ScheduleEditorDialogService>();
-                    services.AddSingleton<INotificationCenterFactory, NotificationCenterFactory>();
 
                     services.AddTransient<ScheduleListStateViewModel>();
                     services.AddTransient<ClockViewModel>();
+                    services.AddTransient<NotificationCenterViewModel>();
+                    services.AddSingleton<ScheduleBrowserViewModel>();
+                    services.AddTransient<ScheduleCommandViewModel>();
+                    services.AddTransient<ScheduleExportViewModel>();
 
                     services.AddTransient<MainViewModel>();
                     services.AddTransient<MainWindow>();

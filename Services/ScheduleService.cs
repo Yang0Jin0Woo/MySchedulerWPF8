@@ -1,9 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using MyScheduler.Models;
-using MyScheduler.Utils;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Text;
 using System.Threading;
 
 namespace MyScheduler.Services;
@@ -11,17 +8,13 @@ namespace MyScheduler.Services;
 public class ScheduleService : IScheduleService
 {
     private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly ITimeService _timeService;
 
-    public ScheduleService(IDbContextFactory<AppDbContext> dbFactory)
+    public ScheduleService(IDbContextFactory<AppDbContext> dbFactory, ITimeService timeService)
     {
         _dbFactory = dbFactory;
+        _timeService = timeService;
     }
-
-    public DateTime GetKoreaNow()
-        => TimeUtil.GetKoreaNow();
-
-    public DateTime UtcToKorea(DateTime utc)
-        => TimeUtil.UtcToKorea(utc);
 
     public async Task<(List<ScheduleListItem> Items, int TotalCount)> GetListByDateAsync(
         DateTime date,
@@ -34,8 +27,8 @@ public class ScheduleService : IScheduleService
         var start = date.Date;
         var end = start.AddDays(1);
 
-        var startUtc = TimeUtil.KoreaToUtc(start);
-        var endUtc = TimeUtil.KoreaToUtc(end);
+        var startUtc = _timeService.KoreaToUtc(start);
+        var endUtc = _timeService.KoreaToUtc(end);
         var safePage = Math.Max(1, page);
         var safePageSize = Math.Max(1, pageSize);
         var skip = Math.Max(0, (safePage - 1) * safePageSize);
@@ -65,8 +58,8 @@ public class ScheduleService : IScheduleService
 
         if (item is null) return null;
 
-        item.StartAt = TimeUtil.UtcToKorea(item.StartAt);
-        item.EndAt = TimeUtil.UtcToKorea(item.EndAt);
+        item.StartAt = _timeService.UtcToKorea(item.StartAt);
+        item.EndAt = _timeService.UtcToKorea(item.EndAt);
 
         return item;
     }
@@ -78,8 +71,8 @@ public class ScheduleService : IScheduleService
     {
         if (endKst <= startKst) return new List<ScheduleListItem>();
 
-        var startUtc = TimeUtil.KoreaToUtc(startKst);
-        var endUtc = TimeUtil.KoreaToUtc(endKst);
+        var startUtc = _timeService.KoreaToUtc(startKst);
+        var endUtc = _timeService.KoreaToUtc(endKst);
 
         await using var db = _dbFactory.CreateDbContext();
 
@@ -92,8 +85,8 @@ public class ScheduleService : IScheduleService
                 Id = x.Id,
                 Title = x.Title,
                 Location = x.Location,
-                StartAt = TimeUtil.UtcToKorea(x.StartAt),
-                EndAt = TimeUtil.UtcToKorea(x.EndAt)
+                StartAt = _timeService.UtcToKorea(x.StartAt),
+                EndAt = _timeService.UtcToKorea(x.EndAt)
             })
             .ToListAsync(cancellationToken);
 
@@ -125,8 +118,8 @@ public class ScheduleService : IScheduleService
             Title = item.Title,
             Location = item.Location,
             Notes = item.Notes,
-            StartAt = TimeUtil.KoreaToUtc(item.StartAt),
-            EndAt = TimeUtil.KoreaToUtc(item.EndAt),
+            StartAt = _timeService.KoreaToUtc(item.StartAt),
+            EndAt = _timeService.KoreaToUtc(item.EndAt),
             Priority = item.Priority,
             IsAllDay = item.IsAllDay
         };
@@ -135,8 +128,8 @@ public class ScheduleService : IScheduleService
         db.Schedules.Add(utcItem);
         await db.SaveChangesAsync();
 
-        utcItem.StartAt = TimeUtil.UtcToKorea(utcItem.StartAt);
-        utcItem.EndAt = TimeUtil.UtcToKorea(utcItem.EndAt);
+        utcItem.StartAt = _timeService.UtcToKorea(utcItem.StartAt);
+        utcItem.EndAt = _timeService.UtcToKorea(utcItem.EndAt);
 
         return utcItem;
     }
@@ -152,8 +145,8 @@ public class ScheduleService : IScheduleService
             Title = item.Title,
             Location = item.Location,
             Notes = item.Notes,
-            StartAt = TimeUtil.KoreaToUtc(item.StartAt),
-            EndAt = TimeUtil.KoreaToUtc(item.EndAt),
+            StartAt = _timeService.KoreaToUtc(item.StartAt),
+            EndAt = _timeService.KoreaToUtc(item.EndAt),
             Priority = item.Priority,
             IsAllDay = item.IsAllDay,
 
@@ -177,8 +170,8 @@ public class ScheduleService : IScheduleService
         try
         {
             await db.SaveChangesAsync();
-            utcItem.StartAt = TimeUtil.UtcToKorea(utcItem.StartAt);
-            utcItem.EndAt = TimeUtil.UtcToKorea(utcItem.EndAt);
+            utcItem.StartAt = _timeService.UtcToKorea(utcItem.StartAt);
+            utcItem.EndAt = _timeService.UtcToKorea(utcItem.EndAt);
             return utcItem;
         }
         catch (DbUpdateConcurrencyException ex)
@@ -193,8 +186,8 @@ public class ScheduleService : IScheduleService
                 throw new ConcurrencyConflictException(latest: null, isDeleted: true);
 
             var latestUtc = (ScheduleItem)dbValues.ToObject();
-            latestUtc.StartAt = TimeUtil.UtcToKorea(latestUtc.StartAt);
-            latestUtc.EndAt = TimeUtil.UtcToKorea(latestUtc.EndAt);
+            latestUtc.StartAt = _timeService.UtcToKorea(latestUtc.StartAt);
+            latestUtc.EndAt = _timeService.UtcToKorea(latestUtc.EndAt);
 
             throw new ConcurrencyConflictException(latest: latestUtc, isDeleted: false);
         }
@@ -234,32 +227,14 @@ public class ScheduleService : IScheduleService
                 throw new ConcurrencyConflictException(latest: null, isDeleted: true);
 
             var latestUtc = (ScheduleItem)dbValues.ToObject();
-            latestUtc.StartAt = TimeUtil.UtcToKorea(latestUtc.StartAt);
-            latestUtc.EndAt = TimeUtil.UtcToKorea(latestUtc.EndAt);
+            latestUtc.StartAt = _timeService.UtcToKorea(latestUtc.StartAt);
+            latestUtc.EndAt = _timeService.UtcToKorea(latestUtc.EndAt);
 
             throw new ConcurrencyConflictException(latest: latestUtc, isDeleted: false);
         }
     }
 
-    public byte[] BuildCsvBytes(IEnumerable<ScheduleListItem> items)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("Id,Title,Location,StartAt,EndAt");
-
-        foreach (var r in items)
-        {
-            sb.Append(EscapeCsv(r.Id.ToString(CultureInfo.InvariantCulture))).Append(',');
-            sb.Append(EscapeCsv(r.Title)).Append(',');
-            sb.Append(EscapeCsv(r.Location)).Append(',');
-            sb.Append(EscapeCsv(r.StartAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))).Append(',');
-            sb.Append(EscapeCsv(r.EndAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)));
-            sb.AppendLine();
-        }
-
-        return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
-    }
-
-    private static async Task<(List<ScheduleListItem> Items, int TotalCount)> LoadByLikeAsync(
+    private async Task<(List<ScheduleListItem> Items, int TotalCount)> LoadByLikeAsync(
         IQueryable<ScheduleItem> query,
         (string KeywordNormalized, string? SearchScope)? filter,
         int pageSize,
@@ -291,23 +266,12 @@ public class ScheduleService : IScheduleService
                 Id = x.Id,
                 Title = x.Title,
                 Location = x.Location,
-                StartAt = TimeUtil.UtcToKorea(x.StartAt),
-                EndAt = TimeUtil.UtcToKorea(x.EndAt)
+                StartAt = _timeService.UtcToKorea(x.StartAt),
+                EndAt = _timeService.UtcToKorea(x.EndAt)
             })
             .ToListAsync(cancellationToken);
 
         return (items, totalCount);
-    }
-
-    private static string EscapeCsv(string? value)
-    {
-        var s = value ?? "";
-        var mustQuote = s.Contains(',') || s.Contains('"') || s.Contains('\n') || s.Contains('\r');
-
-        if (s.Contains('"'))
-            s = s.Replace("\"", "\"\"");
-
-        return mustQuote ? $"\"{s}\"" : s;
     }
 
     private static string NormalizeKeyword(string? value)

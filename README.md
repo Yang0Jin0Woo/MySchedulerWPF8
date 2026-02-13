@@ -73,6 +73,23 @@ SQL Server (MySchedulerDb)
 
 ---
 
+## ViewModel / Service 책임 요약
+
+- MainViewModel.cs: 하위 ViewModel을 묶어 화면 바인딩 계약을 유지하고 전체 UI 흐름을 조율합니다.
+- ScheduleBrowserViewModel.cs: 목록/상세 조회, 검색/필터, 페이징, 요청 취소/버전 관리 등 조회 흐름을 전담합니다.
+- ScheduleCommandViewModel.cs: 일정 추가/수정/삭제와 동시성 충돌 처리, 사용자 안내를 담당합니다.
+- ScheduleExportViewModel.cs: CSV 내보내기(경로 선택, 생성 호출, 저장/오류 처리)를 담당합니다.
+- NotificationCenterViewModel.cs: 주기 스캔 기반 알림 생성, 중복 억제, 그룹 알림 상태 관리를 담당합니다.
+- ClockViewModel.cs: 현재 시각(KST) 갱신 타이머와 표시 상태를 관리합니다.
+
+- ScheduleService.cs: 일정 도메인 데이터 접근(EF Core), 검색/페이징 쿼리, 낙관적 동시성 처리를 구현합니다.
+- TimeService.cs: UTC↔KST 변환과 현재 한국 시각 제공을 담당합니다.
+- ScheduleCsvService.cs: 일정 목록을 CSV(UTF-8 BOM, escape 처리) 바이트로 변환합니다.
+- DialogService.cs: 확인/알림/오류 메시지와 파일 저장 대화상자 표시를 담당합니다.
+- ScheduleEditorDialogService.cs: 일정 편집 창을 열고 결과 모델을 반환하는 UI 브리지 역할을 수행합니다.
+
+---
+
 ## 주요 기능
 
 - 일정 목록 조회, 일정 상세 조회, 일정 추가 / 수정 / 삭제, MVVM 기반 DataBinding & Command
@@ -120,6 +137,8 @@ SQL Server (MySchedulerDb)
 
  → 빠른 날짜 전환이나 선택 변경에도 화면 상태가 항상 사용자 입력과 일치
 
+- 핵심 파일: `ViewModels/ScheduleBrowserViewModel.cs`, `ViewModels/MainViewModel.cs`
+
 ### 비동기 요청 취소
 
 - 날짜 변경/선택 변경이 빠르게 연속 발생할 때, 이전 요청이 계속 실행되어 불필요한 DB 작업과 지연 발생
@@ -133,6 +152,8 @@ SQL Server (MySchedulerDb)
 
  → 불필요한 작업을 줄이고, 최신 사용자 입력에만 반응하도록 개선
 
+- 핵심 파일: `ViewModels/ScheduleBrowserViewModel.cs`, `ViewModels/NotificationCenterViewModel.cs`
+
 ### Write 작업 안정화(재진입 방지)
 
 - 일정 추가/수정/삭제 작업이 연속 또는 동시에 실행될 경우는 중복 처리, 상태 꼬임, 의도하지 않은 요청 발생 가능
@@ -145,6 +166,8 @@ SQL Server (MySchedulerDb)
 - 처리 중에는 버튼 비활성화 및 로딩 오버레이 표시로 사용자 입력 제한
 
  → 연타/중복 실행을 방지하고, 쓰기/조회 작업 간 UI 상태 충돌 없는 안정적인 흐름 유지
+
+- 핵심 파일: `ViewModels/ScheduleCommandViewModel.cs`, `ViewModels/ScheduleBrowserViewModel.cs`, `ViewModels/MainViewModel.cs`
 
 
 ### 동시성 개선
@@ -161,6 +184,8 @@ SQL Server (MySchedulerDb)
   - 수정 충돌인 경우 → 최신 데이터를 재조회하여 화면 갱신
 
  → 예상하지 못한 덮어쓰기와 데이터 유실 방지, 사용자가 항상 현재 기준의 정확한 데이터 상태를 인지 가능
+
+- 핵심 파일: `Services/ScheduleService.cs`, `Services/ConcurrencyConflictException.cs`, `ViewModels/ScheduleCommandViewModel.cs`
 
 ### 클라우드 배포 대응 시간 처리
 
@@ -184,6 +209,8 @@ SQL Server (MySchedulerDb)
 - 날짜 범위, 검색 범위(전체/제목/장소), 페이지 정보를 함께 전달해 필요한 데이터만 조회
 
  → 대량 데이터에서도 조회 범위를 줄여 성능을 안정적으로 유지하고, 페이징과 검색 결과 일관성을 확보
+
+- 핵심 파일: `Services/ScheduleService.cs`, `ViewModels/ScheduleBrowserViewModel.cs`, `Data/AppDbContext.cs`
 
 **EF.Functions.Like 문제와 해결**
 

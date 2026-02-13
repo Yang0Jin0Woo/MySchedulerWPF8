@@ -7,15 +7,15 @@ namespace MyScheduler.ViewModels;
 
 public partial class ClockViewModel : ObservableObject
 {
-    private readonly IScheduleService _scheduleService;
+    private readonly ITimeService _timeService;
     private readonly DispatcherTimer _clockTimer = new();
 
     [ObservableProperty]
     private DateTime nowKst;
 
-    public ClockViewModel(IScheduleService scheduleService)
+    public ClockViewModel(ITimeService timeService)
     {
-        _scheduleService = scheduleService;
+        _timeService = timeService;
     }
 
     public void Start()
@@ -25,7 +25,7 @@ public partial class ClockViewModel : ObservableObject
         _clockTimer.Tick -= OnTick;
         _clockTimer.Tick += OnTick;
 
-        NowKst = _scheduleService.UtcToKorea(DateTime.UtcNow);
+        NowKst = _timeService.GetKoreaNow();
         _clockTimer.Start();
     }
 
@@ -37,6 +37,6 @@ public partial class ClockViewModel : ObservableObject
 
     private void OnTick(object? sender, EventArgs e)
     {
-        NowKst = _scheduleService.UtcToKorea(DateTime.UtcNow);
+        NowKst = _timeService.GetKoreaNow();
     }
 }
