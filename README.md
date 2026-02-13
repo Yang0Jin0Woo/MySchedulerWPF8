@@ -85,12 +85,13 @@ SQL Server (MySchedulerDb)
 - NotificationCenterViewModel.cs: 주기 스캔 기반 알림 생성, 중복 억제, 그룹 알림 상태 관리와 스캔 예외 로깅 담당
 - ClockViewModel.cs: 현재 시각(KST) 갱신 타이머와 표시 상태를 관리
 
-- ScheduleService.cs: 일정 도메인 데이터 접근(EF Core), 정규화 컬럼 기반 검색/페이징 쿼리, 낙관적 동시성 처리 구현
+- ScheduleService.cs: 일정 도메인 데이터 접근(EF Core), 반열린 구간 기반 날짜 겹침 조회, 저장 전 시간 범위 검증/정규화, 낙관적 동시성 처리 구현
 - TimeService.cs: UTC↔KST 변환과 현재 한국 시각 제공
 - ScheduleCsvService.cs: 일정 목록을 CSV(UTF-8 BOM, escape 처리) 바이트로 변환
 - DialogService.cs: 확인/알림/오류 메시지와 파일 저장 대화상자 표시
 - ScheduleEditorDialogService.cs: 일정 편집 창을 열고 결과 모델을 반환하는 UI 브리지 역할
 - UserMessageTemplates.cs: DB 작업 실패 공통 안내 문구를 중앙 관리하여 중복 메시지 제거
+- DomainValidationException.cs: 도메인 입력 검증 실패를 DB 예외와 분리해 사용자 피드백 흐름을 명확화
 
 ---
 
@@ -202,6 +203,20 @@ SQL Server (MySchedulerDb)
 - Service 계층에서 UTC ↔ KST 변환을 일관되게 적용
 
  → 배포 환경과 무관하게 동일한 시간 기준 유지하고, 클라우드 환경에서도 일정 시간 오차 없는 안정적인 동작 보장
+
+### 시간 구간/경계값 일관성
+
+- 조회와 저장의 시간 구간을 반열린 구간 `[start, end)` 규칙으로 통일
+  - 날짜 목록 조회 조건: `StartAt < dayEndUtc && EndAt > dayStartUtc`
+  - `EndAt == dayStart(00:00)`인 일정은 다음날 목록에 포함되지 않음
+- 알림용 `GetOverlappingInRangeAsync`는 UTC 단일 경로 조회로 통일하고 KST 레거시 fallback 분기를 제거
+  - 범위 조회 조건: `StartAt < endUtc && EndAt > startUtc` (범위와 겹치는 일정 포함)
+- 저장 시 Service 계층에서 `EndAt > StartAt`를 공통 검증해 UI 우회 입력도 차단
+- 시간대 입력 계약을 명시적으로 강제
+  - Service 입력은 KST wall-clock 기준으로 처리하고 `DateTimeKind.Utc` 입력은 검증 예외로 차단
+- 도메인 검증 예외를 분리(`DomainValidationException`)하여 사용자 입력 오류와 DB 오류 안내를 분리 처리
+
+- 핵심 파일: `Services/ScheduleService.cs`, `ViewModels/ScheduleCommandViewModel.cs`, `Services/DomainValidationException.cs`
 
 ### 검색 및 필터
 

@@ -42,6 +42,10 @@ public partial class ScheduleCommandViewModel : ObservableObject
 
             _browserViewModel.SelectedSchedule = _browserViewModel.PagedSchedules.FirstOrDefault(x => x.Id == created.Id);
         }
+        catch (DomainValidationException ex)
+        {
+            _dialogService.ShowWarning(ex.Message, "입력값 확인");
+        }
         catch (Exception ex)
         {
             ShowUserError(
@@ -71,6 +75,10 @@ public partial class ScheduleCommandViewModel : ObservableObject
             var updated = await _scheduleService.UpdateAsync(result);
             result.RowVersion = updated.RowVersion;
             await _browserViewModel.LoadSchedulesAsync(false);
+        }
+        catch (DomainValidationException ex)
+        {
+            _dialogService.ShowWarning(ex.Message, "입력값 확인");
         }
         catch (ConcurrencyConflictException ex)
         {

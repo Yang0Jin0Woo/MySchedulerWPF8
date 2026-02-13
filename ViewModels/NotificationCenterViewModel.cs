@@ -188,7 +188,7 @@ public partial class NotificationCenterViewModel : ObservableObject
             var targetStart = now;
             var targetEnd = now.AddMinutes(NotificationLeadMinutes);
 
-            var upcoming = await _scheduleService.GetUpcomingAsync(
+            var upcoming = await _scheduleService.GetOverlappingInRangeAsync(
                 targetStart,
                 targetEnd,
                 _notificationCts.Token);
@@ -236,7 +236,7 @@ public partial class NotificationCenterViewModel : ObservableObject
         try
         {
             var now = _timeService.GetKoreaNow();
-            var upcoming = await _scheduleService.GetUpcomingAsync(
+            var upcoming = await _scheduleService.GetOverlappingInRangeAsync(
                 now,
                 now.AddMinutes(NotificationLeadMinutes),
                 _notificationCts.Token);

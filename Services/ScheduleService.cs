@@ -37,7 +37,7 @@ public class ScheduleService : IScheduleService
 
         IQueryable<ScheduleItem> query = db.Schedules
             .AsNoTracking()
-            .Where(x => x.StartAt < endUtc && x.EndAt >= startUtc);
+            .Where(x => x.StartAt < endUtc && x.EndAt > startUtc);
 
         var keywordNormalized = NormalizeKeyword(searchText);
         if (string.IsNullOrWhiteSpace(keywordNormalized))
@@ -64,7 +64,7 @@ public class ScheduleService : IScheduleService
         return item;
     }
 
-    public async Task<List<ScheduleListItem>> GetUpcomingAsync(
+    public async Task<List<ScheduleListItem>> GetOverlappingInRangeAsync(
         DateTime startKst,
         DateTime endKst,
         CancellationToken cancellationToken)
@@ -76,9 +76,9 @@ public class ScheduleService : IScheduleService
 
         await using var db = _dbFactory.CreateDbContext();
 
-        var primary = await db.Schedules
+        var upcoming = await db.Schedules
             .AsNoTracking()
-            .Where(x => x.StartAt >= startUtc && x.StartAt < endUtc)
+            .Where(x => x.StartAt < endUtc && x.EndAt > startUtc)
             .OrderBy(x => x.StartAt)
             .Select(x => new ScheduleListItem
             {
@@ -90,36 +90,20 @@ public class ScheduleService : IScheduleService
             })
             .ToListAsync(cancellationToken);
 
-        if (primary.Count > 0)
-            return primary;
-
-        // Legacy fallback: 일부 데이터가 KST로 저장된 경우를 대비해 KST 기준으로 조회
-        var legacy = await db.Schedules
-            .AsNoTracking()
-            .Where(x => x.StartAt >= startKst && x.StartAt < endKst)
-            .OrderBy(x => x.StartAt)
-            .Select(x => new ScheduleListItem
-            {
-                Id = x.Id,
-                Title = x.Title,
-                Location = x.Location,
-                StartAt = x.StartAt,
-                EndAt = x.EndAt
-            })
-            .ToListAsync(cancellationToken);
-
-        return legacy;
+        return upcoming;
     }
 
     public async Task<ScheduleItem> AddAsync(ScheduleItem item)
     {
+        var (normalizedStartKst, normalizedEndKst) = NormalizeAndValidateRange(item);
+
         var utcItem = new ScheduleItem
         {
             Title = item.Title,
             Location = item.Location,
             Notes = item.Notes,
-            StartAt = _timeService.KoreaToUtc(item.StartAt),
-            EndAt = _timeService.KoreaToUtc(item.EndAt),
+            StartAt = _timeService.KoreaToUtc(normalizedStartKst),
+            EndAt = _timeService.KoreaToUtc(normalizedEndKst),
             Priority = item.Priority,
             IsAllDay = item.IsAllDay
         };
@@ -139,14 +123,16 @@ public class ScheduleService : IScheduleService
         if (item.RowVersion is null)
             throw new ConcurrencyConflictException(null, isDeleted: false);
 
+        var (normalizedStartKst, normalizedEndKst) = NormalizeAndValidateRange(item);
+
         var utcItem = new ScheduleItem
         {
             Id = item.Id,
             Title = item.Title,
             Location = item.Location,
             Notes = item.Notes,
-            StartAt = _timeService.KoreaToUtc(item.StartAt),
-            EndAt = _timeService.KoreaToUtc(item.EndAt),
+            StartAt = _timeService.KoreaToUtc(normalizedStartKst),
+            EndAt = _timeService.KoreaToUtc(normalizedEndKst),
             Priority = item.Priority,
             IsAllDay = item.IsAllDay,
 
@@ -272,6 +258,31 @@ public class ScheduleService : IScheduleService
             .ToListAsync(cancellationToken);
 
         return (items, totalCount);
+    }
+
+    private static (DateTime StartAt, DateTime EndAt) NormalizeAndValidateRange(ScheduleItem item)
+    {
+        var startAt = NormalizeKstInput(item.StartAt);
+        var endAt = NormalizeKstInput(item.EndAt);
+
+        if (item.IsAllDay)
+        {
+            startAt = startAt.Date;
+            endAt = startAt.AddDays(1);
+        }
+
+        if (endAt <= startAt)
+            throw new DomainValidationException("종료 시점은 시작 시점보다 이후여야 합니다.");
+
+        return (startAt, endAt);
+    }
+
+    private static DateTime NormalizeKstInput(DateTime value)
+    {
+        if (value.Kind == DateTimeKind.Utc)
+            throw new DomainValidationException("일정 시간은 UTC가 아닌 KST 기준으로 입력되어야 합니다.");
+
+        return DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
     }
 
     private static string NormalizeKeyword(string? value)
