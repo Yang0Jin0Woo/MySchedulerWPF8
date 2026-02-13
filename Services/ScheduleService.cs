@@ -64,7 +64,7 @@ public class ScheduleService : IScheduleService
         return item;
     }
 
-    public async Task<List<ScheduleListItem>> GetOverlappingInRangeAsync(
+    public async Task<List<ScheduleListItem>> GetStartingInRangeAsync(
         DateTime startKst,
         DateTime endKst,
         CancellationToken cancellationToken)
@@ -78,8 +78,20 @@ public class ScheduleService : IScheduleService
 
         var upcoming = await db.Schedules
             .AsNoTracking()
-            .Where(x => x.StartAt < endUtc && x.EndAt > startUtc)
+            .Where(x => x.StartAt >= startUtc && x.StartAt < endUtc)
             .OrderBy(x => x.StartAt)
+            .ThenBy(x => x.Id)
+            .Select(x => new
+            {
+                Id = x.Id,
+                Title = x.Title,
+                Location = x.Location,
+                x.StartAt,
+                x.EndAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return upcoming
             .Select(x => new ScheduleListItem
             {
                 Id = x.Id,
@@ -88,9 +100,7 @@ public class ScheduleService : IScheduleService
                 StartAt = _timeService.UtcToKorea(x.StartAt),
                 EndAt = _timeService.UtcToKorea(x.EndAt)
             })
-            .ToListAsync(cancellationToken);
-
-        return upcoming;
+            .ToList();
     }
 
     public async Task<ScheduleItem> AddAsync(ScheduleItem item)
@@ -243,10 +253,22 @@ public class ScheduleService : IScheduleService
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
+        var rows = await query
             .OrderBy(x => x.StartAt)
+            .ThenBy(x => x.Id)
             .Skip(skip)
             .Take(pageSize)
+            .Select(x => new
+            {
+                Id = x.Id,
+                Title = x.Title,
+                Location = x.Location,
+                x.StartAt,
+                x.EndAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = rows
             .Select(x => new ScheduleListItem
             {
                 Id = x.Id,
@@ -255,7 +277,7 @@ public class ScheduleService : IScheduleService
                 StartAt = _timeService.UtcToKorea(x.StartAt),
                 EndAt = _timeService.UtcToKorea(x.EndAt)
             })
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return (items, totalCount);
     }

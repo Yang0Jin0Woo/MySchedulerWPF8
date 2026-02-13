@@ -209,8 +209,8 @@ SQL Server (MySchedulerDb)
 - 조회와 저장의 시간 구간을 반열린 구간 `[start, end)` 규칙으로 통일
   - 날짜 목록 조회 조건: `StartAt < dayEndUtc && EndAt > dayStartUtc`
   - `EndAt == dayStart(00:00)`인 일정은 다음날 목록에 포함되지 않음
-- 알림용 `GetOverlappingInRangeAsync`는 UTC 단일 경로 조회로 통일하고 KST 레거시 fallback 분기를 제거
-  - 범위 조회 조건: `StartAt < endUtc && EndAt > startUtc` (범위와 겹치는 일정 포함)
+- 알림용 `GetStartingInRangeAsync`는 UTC 단일 경로 조회로 통일하고 KST 레거시 fallback 분기를 제거
+  - 범위 조회 조건: `StartAt >= startUtc && StartAt < endUtc` (곧 시작할 일정만 포함)
 - 저장 시 Service 계층에서 `EndAt > StartAt`를 공통 검증해 UI 우회 입력도 차단
 - 시간대 입력 계약을 명시적으로 강제
   - Service 입력은 KST wall-clock 기준으로 처리하고 `DateTimeKind.Utc` 입력은 검증 예외로 차단

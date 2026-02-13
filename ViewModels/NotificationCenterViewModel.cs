@@ -188,35 +188,30 @@ public partial class NotificationCenterViewModel : ObservableObject
             var targetStart = now;
             var targetEnd = now.AddMinutes(NotificationLeadMinutes);
 
-            var upcoming = await _scheduleService.GetOverlappingInRangeAsync(
+            var upcoming = await _scheduleService.GetStartingInRangeAsync(
                 targetStart,
                 targetEnd,
                 _notificationCts.Token);
 
-            if (upcoming.Count > 0)
+            var fresh = upcoming
+                .Where(x => !_notifiedKeys.ContainsKey(BuildNotificationKey(x.Id, x.StartAt)))
+                .OrderBy(x => x.StartAt)
+                .ThenBy(x => x.Id)
+                .ToList();
+
+            if (fresh.Count == 0) return;
+
+            if (TryMergeIntoLatestNotification(fresh, targetStart, targetEnd))
             {
-                var fresh = upcoming
-                    .Where(x => !_notifiedKeys.ContainsKey(BuildNotificationKey(x.Id, x.StartAt)))
-                    .ToList();
-
-                if (fresh.Count > 0)
-                {
-                    if (TryMergeIntoLatestNotification(fresh, targetStart, targetEnd, now))
-                        return;
-
-                    var groupItems = BuildGroupItems(upcoming);
-                    var first = upcoming[0];
-                    var additional = Math.Max(0, upcoming.Count - 1);
-                    AddNotification(first, now, markNotified: true, additional, groupItems);
-
-                    for (var i = 1; i < upcoming.Count; i++)
-                    {
-                        var key = BuildNotificationKey(upcoming[i].Id, upcoming[i].StartAt);
-                        if (!_notifiedKeys.ContainsKey(key))
-                            _notifiedKeys[key] = now;
-                    }
-                }
+                MarkNotifiedKeys(fresh, now);
+                return;
             }
+
+            var groupItems = BuildGroupItems(fresh);
+            var first = fresh[0];
+            var additional = Math.Max(0, fresh.Count - 1);
+            AddNotification(first, now, targetStart, targetEnd, markNotified: true, additional, groupItems);
+            MarkNotifiedKeys(fresh.Skip(1), now);
         }
         catch (Exception ex)
         {
@@ -236,17 +231,24 @@ public partial class NotificationCenterViewModel : ObservableObject
         try
         {
             var now = _timeService.GetKoreaNow();
-            var upcoming = await _scheduleService.GetOverlappingInRangeAsync(
+            var upcoming = await _scheduleService.GetStartingInRangeAsync(
                 now,
                 now.AddMinutes(NotificationLeadMinutes),
                 _notificationCts.Token);
 
-            var first = upcoming.FirstOrDefault();
+            var fresh = upcoming
+                .Where(x => !_notifiedKeys.ContainsKey(BuildNotificationKey(x.Id, x.StartAt)))
+                .OrderBy(x => x.StartAt)
+                .ThenBy(x => x.Id)
+                .ToList();
+
+            var first = fresh.FirstOrDefault();
             if (first is null) return;
 
-            var additional = Math.Max(0, upcoming.Count - 1);
-            var groupItems = BuildGroupItems(upcoming);
-            AddNotification(first, now, markNotified: true, additional, groupItems);
+            var additional = Math.Max(0, fresh.Count - 1);
+            var groupItems = BuildGroupItems(fresh);
+            AddNotification(first, now, now, now.AddMinutes(NotificationLeadMinutes), markNotified: true, additional, groupItems);
+            MarkNotifiedKeys(fresh.Skip(1), now);
         }
         catch (Exception ex)
         {
@@ -257,6 +259,8 @@ public partial class NotificationCenterViewModel : ObservableObject
     private void AddNotification(
         ScheduleListItem item,
         DateTime now,
+        DateTime windowStart,
+        DateTime windowEnd,
         bool markNotified,
         int additionalCount,
         IReadOnlyList<NotificationGroupItem> relatedItems)
@@ -273,6 +277,8 @@ public partial class NotificationCenterViewModel : ObservableObject
             Title = item.Title,
             StartAt = item.StartAt,
             EndAt = item.EndAt,
+            WindowStart = windowStart,
+            WindowEnd = windowEnd,
             AccentBrush = PickAccentBrush(now, item.StartAt),
             AdditionalCount = additionalCount,
             RelatedItems = relatedItems
@@ -282,20 +288,13 @@ public partial class NotificationCenterViewModel : ObservableObject
             ActiveNotifications.RemoveAt(ActiveNotifications.Count - 1);
     }
 
-    private bool TryMergeIntoLatestNotification(IReadOnlyList<ScheduleListItem> fresh, DateTime windowStart, DateTime windowEnd, DateTime now)
+    private bool TryMergeIntoLatestNotification(IReadOnlyList<ScheduleListItem> fresh, DateTime windowStart, DateTime windowEnd)
     {
         if (ActiveNotifications.Count == 0) return false;
 
         var existing = ActiveNotifications[0];
-        if (existing.StartAt < windowStart || existing.StartAt >= windowEnd)
+        if (existing.WindowStart != windowStart || existing.WindowEnd != windowEnd)
             return false;
-
-        foreach (var item in fresh)
-        {
-            var key = BuildNotificationKey(item.Id, item.StartAt);
-            if (!_notifiedKeys.ContainsKey(key))
-                _notifiedKeys[key] = now;
-        }
 
         var merged = MergeNotificationItems(existing, fresh);
         ActiveNotifications.RemoveAt(0);
@@ -341,6 +340,8 @@ public partial class NotificationCenterViewModel : ObservableObject
             Title = existing.Title,
             StartAt = existing.StartAt,
             EndAt = existing.EndAt,
+            WindowStart = existing.WindowStart,
+            WindowEnd = existing.WindowEnd,
             AccentBrush = existing.AccentBrush,
             AdditionalCount = additional,
             RelatedItems = list
@@ -375,6 +376,16 @@ public partial class NotificationCenterViewModel : ObservableObject
 
     private static string BuildNotificationKey(int scheduleId, DateTime startAt)
         => $"{scheduleId}:{startAt.Ticks}";
+
+    private void MarkNotifiedKeys(IEnumerable<ScheduleListItem> items, DateTime now)
+    {
+        foreach (var item in items)
+        {
+            var key = BuildNotificationKey(item.Id, item.StartAt);
+            if (!_notifiedKeys.ContainsKey(key))
+                _notifiedKeys[key] = now;
+        }
+    }
 
     private void PruneNotifiedKeys(DateTime now)
     {

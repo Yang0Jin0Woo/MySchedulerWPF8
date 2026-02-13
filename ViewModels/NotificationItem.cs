@@ -10,6 +10,8 @@ public class NotificationItem
     public string Title { get; init; } = "";
     public DateTime StartAt { get; init; }
     public DateTime EndAt { get; init; }
+    public DateTime WindowStart { get; init; }
+    public DateTime WindowEnd { get; init; }
 
     public Brush AccentBrush { get; init; } = Brushes.DodgerBlue;
     public int AdditionalCount { get; init; }

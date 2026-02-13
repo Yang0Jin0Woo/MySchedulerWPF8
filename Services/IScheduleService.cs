@@ -14,7 +14,7 @@ public interface IScheduleService
         CancellationToken cancellationToken);
     Task<ScheduleItem?> GetByIdAsync(int id, CancellationToken cancellationToken);
 
-    Task<List<ScheduleListItem>> GetOverlappingInRangeAsync(
+    Task<List<ScheduleListItem>> GetStartingInRangeAsync(
         DateTime startKst,
         DateTime endKst,
         CancellationToken cancellationToken);
