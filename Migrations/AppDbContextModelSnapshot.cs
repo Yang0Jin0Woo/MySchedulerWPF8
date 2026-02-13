@@ -39,6 +39,12 @@ namespace MyScheduler.Migrations
                     b.Property<string>("Location")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("LocationNormalized")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasComputedColumnSql("CASE WHEN [Location] IS NULL THEN NULL ELSE CONVERT(nvarchar(256), UPPER(REPLACE(REPLACE(REPLACE(REPLACE([Location], N' ', N''), NCHAR(9), N''), NCHAR(10), N''), NCHAR(13), N''))) END", true);
+
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
@@ -55,7 +61,14 @@ namespace MyScheduler.Migrations
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("TitleNormalized")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasComputedColumnSql("CONVERT(nvarchar(256), UPPER(REPLACE(REPLACE(REPLACE(REPLACE([Title], N' ', N''), NCHAR(9), N''), NCHAR(10), N''), NCHAR(13), N'')))", true);
 
                     b.HasKey("Id");
 
@@ -64,6 +77,10 @@ namespace MyScheduler.Migrations
                     b.HasIndex("StartAt");
 
                     b.HasIndex("StartAt", "EndAt");
+
+                    b.HasIndex("StartAt", "LocationNormalized", "Id");
+
+                    b.HasIndex("StartAt", "TitleNormalized", "Id");
 
                     b.ToTable("Schedules");
                 });

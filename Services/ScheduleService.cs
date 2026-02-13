@@ -36,6 +36,9 @@ public class ScheduleService : IScheduleService
 
         var startUtc = TimeUtil.KoreaToUtc(start);
         var endUtc = TimeUtil.KoreaToUtc(end);
+        var safePage = Math.Max(1, page);
+        var safePageSize = Math.Max(1, pageSize);
+        var skip = Math.Max(0, (safePage - 1) * safePageSize);
 
         await using var db = _dbFactory.CreateDbContext();
 
@@ -43,37 +46,13 @@ public class ScheduleService : IScheduleService
             .AsNoTracking()
             .Where(x => x.StartAt < endUtc && x.EndAt >= startUtc);
 
-        var keyword = NormalizeKeyword(searchText);
-        if (!string.IsNullOrWhiteSpace(keyword))
+        var keywordNormalized = NormalizeKeyword(searchText);
+        if (string.IsNullOrWhiteSpace(keywordNormalized))
         {
-            var likePattern = $"%{EscapeLikePattern(keyword)}%";
-            query = searchScope switch
-            {
-                "제목" => query.Where(x => EF.Functions.Like(x.Title, likePattern, "\\")),
-                "장소" => query.Where(x => x.Location != null && EF.Functions.Like(x.Location, likePattern, "\\")),
-                _ => query.Where(x => EF.Functions.Like(x.Title, likePattern, "\\") ||
-                                      (x.Location != null && EF.Functions.Like(x.Location, likePattern, "\\"))),
-            };
+            return await LoadByLikeAsync(query, null, safePageSize, skip, cancellationToken);
         }
 
-        var totalCount = await query.CountAsync(cancellationToken);
-
-        var skip = Math.Max(0, (page - 1) * pageSize);
-        var items = await query
-            .OrderBy(x => x.StartAt)
-            .Skip(skip)
-            .Take(pageSize)
-            .Select(x => new ScheduleListItem
-            {
-                Id = x.Id,
-                Title = x.Title,
-                Location = x.Location,
-                StartAt = TimeUtil.UtcToKorea(x.StartAt),
-                EndAt = TimeUtil.UtcToKorea(x.EndAt)
-            })
-            .ToListAsync(cancellationToken);
-
-        return (items, totalCount);
+        return await LoadByLikeAsync(query, (keywordNormalized, searchScope), safePageSize, skip, cancellationToken);
     }
 
     public async Task<ScheduleItem?> GetByIdAsync(int id, CancellationToken cancellationToken)
@@ -280,6 +259,46 @@ public class ScheduleService : IScheduleService
         return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
     }
 
+    private static async Task<(List<ScheduleListItem> Items, int TotalCount)> LoadByLikeAsync(
+        IQueryable<ScheduleItem> query,
+        (string KeywordNormalized, string? SearchScope)? filter,
+        int pageSize,
+        int skip,
+        CancellationToken cancellationToken)
+    {
+        if (filter is not null)
+        {
+            var likePattern = $"{filter.Value.KeywordNormalized}%";
+            var searchScope = filter.Value.SearchScope;
+            query = searchScope switch
+            {
+                "제목" => query.Where(x => EF.Functions.Like(x.TitleNormalized, likePattern)),
+                "장소" => query.Where(x => x.LocationNormalized != null &&
+                                          EF.Functions.Like(x.LocationNormalized, likePattern)),
+                _ => query.Where(x => EF.Functions.Like(x.TitleNormalized, likePattern) ||
+                                      (x.LocationNormalized != null &&
+                                       EF.Functions.Like(x.LocationNormalized, likePattern))),
+            };
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(x => x.StartAt)
+            .Skip(skip)
+            .Take(pageSize)
+            .Select(x => new ScheduleListItem
+            {
+                Id = x.Id,
+                Title = x.Title,
+                Location = x.Location,
+                StartAt = TimeUtil.UtcToKorea(x.StartAt),
+                EndAt = TimeUtil.UtcToKorea(x.EndAt)
+            })
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
     private static string EscapeCsv(string? value)
     {
         var s = value ?? "";
@@ -295,19 +314,12 @@ public class ScheduleService : IScheduleService
     {
         if (string.IsNullOrWhiteSpace(value)) return "";
 
-        var trimmed = value.Trim();
-        var collapsed = string.Join(" ",
-            trimmed.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var normalized = value.Trim()
+            .Replace(" ", "")
+            .Replace("\t", "")
+            .Replace("\n", "")
+            .Replace("\r", "");
 
-        return collapsed;
-    }
-
-    private static string EscapeLikePattern(string value)
-    {
-        return value
-            .Replace("\\", "\\\\")
-            .Replace("%", "\\%")
-            .Replace("_", "\\_")
-            .Replace("[", "\\[");
+        return normalized.ToUpperInvariant();
     }
 }

@@ -81,6 +81,13 @@ public partial class ScheduleEditViewModel : ObservableObject
             return;
         }
 
+        var titleTrimmed = Title.Trim();
+        if (titleTrimmed.Length > 256)
+        {
+            ErrorMessage = "제목은 256자 이하여야 합니다.";
+            return;
+        }
+
         if (StartTime is null)
         {
             ErrorMessage = "시작 시간을 선택해주세요.";
@@ -105,7 +112,7 @@ public partial class ScheduleEditViewModel : ObservableObject
         if (Result is null)
             Result = new ScheduleItem();
 
-        Result.Title = Title.Trim();
+        Result.Title = titleTrimmed;
         Result.StartAt = startAt;
         Result.EndAt = endAt;
         Result.Location = string.IsNullOrWhiteSpace(Location) ? null : Location.Trim();
