@@ -18,12 +18,16 @@ public partial class ScheduleBrowserViewModel : ObservableObject
     private CancellationTokenSource? _listCts;
     private CancellationTokenSource? _detailCts;
     private bool _suppressDateReload;
+    private Task _scheduledLoadTask = Task.CompletedTask;
+    private Task _scheduledDetailTask = Task.CompletedTask;
 
     private const int PageSize = 10;
 
     public ObservableCollection<ScheduleListItem> PagedSchedules { get; } = new();
     public ObservableCollection<string> SearchScopes => _listState.SearchScopes;
     public ObservableCollection<int> PageNumbers => _listState.PageNumbers;
+    internal Task ScheduledLoadTask => _scheduledLoadTask;
+    internal Task ScheduledDetailTask => _scheduledDetailTask;
 
     public int CurrentPage => _listState.CurrentPage;
     public int TotalPages => _listState.TotalPages;
@@ -91,7 +95,7 @@ public partial class ScheduleBrowserViewModel : ObservableObject
         OnPropertyChanged(nameof(SearchText));
         OnPropertyChanged(nameof(SelectedSearchScope));
         UpdatePagingUi();
-        _ = LoadSchedulesAsync();
+        ScheduleLoad();
     }
 
     public void ClearSearch()
@@ -100,14 +104,14 @@ public partial class ScheduleBrowserViewModel : ObservableObject
         OnPropertyChanged(nameof(SearchText));
         OnPropertyChanged(nameof(SelectedSearchScope));
         UpdatePagingUi();
-        _ = LoadSchedulesAsync();
+        ScheduleLoad();
     }
 
     public bool MovePrevPage()
     {
         if (!_listState.MovePrevPage()) return false;
         UpdatePagingUi();
-        _ = LoadSchedulesAsync(false);
+        ScheduleLoad(false);
         return true;
     }
 
@@ -115,7 +119,7 @@ public partial class ScheduleBrowserViewModel : ObservableObject
     {
         if (!_listState.MoveNextPage()) return false;
         UpdatePagingUi();
-        _ = LoadSchedulesAsync(false);
+        ScheduleLoad(false);
         return true;
     }
 
@@ -123,7 +127,7 @@ public partial class ScheduleBrowserViewModel : ObservableObject
     {
         if (!_listState.GoToPage(page)) return false;
         UpdatePagingUi();
-        _ = LoadSchedulesAsync(false);
+        ScheduleLoad(false);
         return true;
     }
 
@@ -239,14 +243,14 @@ public partial class ScheduleBrowserViewModel : ObservableObject
         {
             _listState.MoveToFirstPage();
             UpdatePagingUi();
-            _ = LoadSchedulesAsync();
+            ScheduleLoad();
         }
     }
 
     partial void OnSelectedScheduleChanged(ScheduleListItem? value)
     {
         SelectedScheduleDetail = null;
-        _ = LoadSelectedDetailAsync();
+        ScheduleDetailLoad();
     }
 
     private async Task LoadSelectedDetailAsync()
@@ -310,5 +314,15 @@ public partial class ScheduleBrowserViewModel : ObservableObject
         OnPropertyChanged(nameof(TotalPages));
         OnPropertyChanged(nameof(HasPrevPage));
         OnPropertyChanged(nameof(HasNextPage));
+    }
+
+    private void ScheduleLoad(bool showLoading = true)
+    {
+        _scheduledLoadTask = LoadSchedulesAsync(showLoading);
+    }
+
+    private void ScheduleDetailLoad()
+    {
+        _scheduledDetailTask = LoadSelectedDetailAsync();
     }
 }

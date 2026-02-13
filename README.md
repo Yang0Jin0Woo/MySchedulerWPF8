@@ -249,3 +249,45 @@ SQL Server (MySchedulerDb)
   - `LocationNormalized`를 nullable로 유지해 `장소 없음(NULL)` 의미를 보존
 
 - 핵심 파일: `Data/AppDbContext.cs`, `Services/ScheduleService.cs`
+
+---
+
+## 테스트
+
+### 테스트 프로젝트 구성
+
+- `tests/MyScheduler.UnitTests`
+  - `Utils/TimeUtilTests.cs`
+  - `Services/ScheduleServiceValidationTests.cs`
+  - `ViewModels/ScheduleBrowserViewModelRaceTests.cs`
+- `tests/MyScheduler.IntegrationTests`
+  - `Services/ScheduleServiceQueryTests.cs`
+  - `Services/ScheduleServiceConcurrencyTests.cs`
+
+### 검증 범위
+
+- TimeUtil KST↔UTC 변환 정확성  
+  - 관련 파일: `tests/MyScheduler.UnitTests/Utils/TimeUtilTests.cs`, `Utils/TimeUtil.cs`, `Services/TimeService.cs`
+- ScheduleService 입력 검증 예외
+  - `EndAt <= StartAt`
+  - `DateTimeKind.Utc` 입력 차단
+  - 삭제 시 빈 RowVersion 차단
+  - 관련 파일: `tests/MyScheduler.UnitTests/Services/ScheduleServiceValidationTests.cs`, `Services/ScheduleService.cs`, `Services/DomainValidationException.cs`
+- ScheduleBrowserViewModel 레이스 컨디션 제어
+  - 이전 요청 취소(CancellationToken) 반영
+  - 늦게 완료된 이전 응답 무시(requestVersion 비교)
+  - 관련 파일: `tests/MyScheduler.UnitTests/ViewModels/ScheduleBrowserViewModelRaceTests.cs`, `ViewModels/ScheduleBrowserViewModel.cs`
+- 날짜 반열린 구간(`[start, end)`) 조회 규칙  
+  - 관련 파일: `tests/MyScheduler.IntegrationTests/Services/ScheduleServiceQueryTests.cs`, `Services/ScheduleService.cs`
+- 페이징 정렬/개수 일관성  
+  - 관련 파일: `tests/MyScheduler.IntegrationTests/Services/ScheduleServiceQueryTests.cs`, `Services/ScheduleService.cs`, `ViewModels/ScheduleListStateViewModel.cs`
+- RowVersion 기반 동시성 충돌 처리
+  - 이미 삭제된 데이터 충돌
+  - 타 사용자 선행 수정 충돌 + 최신 데이터 반환
+  - 관련 파일: `tests/MyScheduler.IntegrationTests/Services/ScheduleServiceConcurrencyTests.cs`, `Services/ScheduleService.cs`, `Services/ConcurrencyConflictException.cs`
+
+### 실행 방법
+
+```bash
+dotnet test MyScheduler.sln
+```
