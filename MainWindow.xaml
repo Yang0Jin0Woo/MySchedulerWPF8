@@ -10,10 +10,10 @@
                 <Style TargetType="Grid">
                     <Setter Property="IsEnabled" Value="True"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                        <DataTrigger Binding="{Binding CommandState.IsBusy}" Value="True">
                             <Setter Property="IsEnabled" Value="False"/>
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding IsLoadingList}" Value="True">
+                        <DataTrigger Binding="{Binding Browser.IsLoadingList}" Value="True">
                             <Setter Property="IsEnabled" Value="False"/>
                         </DataTrigger>
                     </Style.Triggers>
@@ -25,7 +25,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Calendar SelectedDate="{Binding SelectedDate}" />
+            <Calendar SelectedDate="{Binding Browser.SelectedDate}" />
 
             <Grid Grid.Column="1" Margin="12,0,0,0">
                 <Grid.RowDefinitions>
@@ -41,13 +41,13 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
-                               Text="{Binding SelectedDate, StringFormat={}{0:yyyy년 M월 d일} 일정}"
+                               Text="{Binding Browser.SelectedDate, StringFormat={}{0:yyyy년 M월 d일} 일정}"
                                FontSize="20"
                                FontWeight="Bold"
                                VerticalAlignment="Center"/>
 
                     <TextBlock Grid.Column="1"
-                               Text="{Binding NowKst, StringFormat={}{0:tt h:mm:ss}, ConverterCulture=ko-KR}"
+                               Text="{Binding Clock.NowKst, StringFormat={}{0:tt h:mm:ss}, ConverterCulture=ko-KR}"
                                FontSize="14"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
@@ -70,8 +70,8 @@
                         <DockPanel LastChildFill="True" Grid.Row="0" Margin="0,0,0,8">
                             <ComboBox DockPanel.Dock="Left"
                                       Width="70"
-                                      ItemsSource="{Binding SearchScopes}"
-                                      SelectedItem="{Binding SelectedSearchScope}"
+                                      ItemsSource="{Binding Browser.SearchScopes}"
+                                      SelectedItem="{Binding Browser.SelectedSearchScope}"
                                       SelectedIndex="0"
                                       VerticalAlignment="Center"/>
 
@@ -88,14 +88,14 @@
                                     VerticalAlignment="Center"/>
 
                             <TextBox Margin="8,0,8,0"
-                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     Text="{Binding Browser.SearchText, UpdateSourceTrigger=PropertyChanged}"
                                      VerticalAlignment="Center"
                                      ToolTip="검색어를 입력하세요"/>
                         </DockPanel>
 
                         <ListBox Grid.Row="1"
-                                 ItemsSource="{Binding PagedSchedules}"
-                                 SelectedItem="{Binding SelectedSchedule}"
+                                 ItemsSource="{Binding Browser.PagedSchedules}"
+                                 SelectedItem="{Binding Browser.SelectedSchedule}"
                                  BorderThickness="1"
                                  BorderBrush="#B0B0B0"
                                  HorizontalContentAlignment="Stretch">
@@ -133,13 +133,13 @@
                                     Margin="0,8,0,0">
                             <Button Content="이전"
                                     Command="{Binding PrevPageCommand}"
-                                    IsEnabled="{Binding HasPrevPage}"
+                                    IsEnabled="{Binding Browser.HasPrevPage}"
                                     MinWidth="44"
                                     Height="26"
                                     Padding="6,0"
                                     Margin="0,0,6,0"/>
 
-                            <ItemsControl ItemsSource="{Binding PageNumbers}">
+                            <ItemsControl ItemsSource="{Binding Browser.PageNumbers}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <StackPanel Orientation="Horizontal"/>
@@ -160,7 +160,7 @@
 
                             <Button Content="다음"
                                     Command="{Binding NextPageCommand}"
-                                    IsEnabled="{Binding HasNextPage}"
+                                    IsEnabled="{Binding Browser.HasNextPage}"
                                     MinWidth="44"
                                     Height="26"
                                     Padding="6,0"/>
@@ -175,7 +175,7 @@
                                 <Style TargetType="Border">
                                     <Setter Property="Visibility" Value="Visible"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedScheduleDetail}" Value="{x:Null}">
+                                        <DataTrigger Binding="{Binding Browser.SelectedScheduleDetail}" Value="{x:Null}">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -192,7 +192,7 @@
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0"
-                                           Text="{Binding SelectedScheduleDetail.Title}"
+                                           Text="{Binding Browser.SelectedScheduleDetail.Title}"
                                            FontSize="18"
                                            FontWeight="Bold"
                                            Margin="0,0,0,10"/>
@@ -204,11 +204,11 @@
                                                VerticalAlignment="Center"
                                                Margin="0,0,8,0"/>
                                     <TextBlock VerticalAlignment="Center">
-                                        <Run Text="{Binding SelectedScheduleDetail.StartAt,
+                                        <Run Text="{Binding Browser.SelectedScheduleDetail.StartAt,
                                                             StringFormat={}{0:yyyy-MM-dd tt h:mm},
                                                             ConverterCulture=ko-KR}"/>
                                         <Run Text=" - "/>
-                                        <Run Text="{Binding SelectedScheduleDetail.EndAt,
+                                        <Run Text="{Binding Browser.SelectedScheduleDetail.EndAt,
                                                             StringFormat={}{0:yyyy-MM-dd tt h:mm},
                                                             ConverterCulture=ko-KR}"/>
                                     </TextBlock>
@@ -221,7 +221,7 @@
                                                VerticalAlignment="Center"
                                                Margin="0,0,8,0"/>
                                     <TextBlock VerticalAlignment="Center"
-                                               Text="{Binding SelectedScheduleDetail.Location}"/>
+                                               Text="{Binding Browser.SelectedScheduleDetail.Location}"/>
                                 </StackPanel>
 
                                 <Separator Grid.Row="3" Margin="0,0,0,10"/>
@@ -232,7 +232,7 @@
                                         Padding="10"
                                         CornerRadius="4">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                        <TextBlock Text="{Binding SelectedScheduleDetail.Notes}"
+                                        <TextBlock Text="{Binding Browser.SelectedScheduleDetail.Notes}"
                                                    TextWrapping="Wrap"
                                                    Foreground="#444"/>
                                     </ScrollViewer>
@@ -248,7 +248,7 @@
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedScheduleDetail}" Value="{x:Null}">
+                                        <DataTrigger Binding="{Binding Browser.SelectedScheduleDetail}" Value="{x:Null}">
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -263,7 +263,7 @@
                                 <Style TargetType="Border">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsLoadingDetail}" Value="True">
+                                        <DataTrigger Binding="{Binding Browser.IsLoadingDetail}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -298,7 +298,7 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom"
                         Margin="12">
-                <ItemsControl ItemsSource="{Binding DisplayNotifications}">
+                <ItemsControl ItemsSource="{Binding NotificationCenter.DisplayNotifications}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Vertical"/>
@@ -371,7 +371,7 @@
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding HasOverflow}" Value="True">
+                                <DataTrigger Binding="{Binding NotificationCenter.HasOverflow}" Value="True">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
                             </Style.Triggers>
@@ -379,11 +379,11 @@
                     </Border.Style>
                     <TextBlock Foreground="White"
                                FontSize="12"
-                               Text="{Binding OverflowCount, StringFormat=+{0}}"/>
+                               Text="{Binding NotificationCenter.OverflowCount, StringFormat=+{0}}"/>
                 </Border>
             </StackPanel>
 
-            <Popup IsOpen="{Binding IsNotificationGroupOpen}"
+            <Popup IsOpen="{Binding NotificationCenter.IsNotificationGroupOpen}"
                    PlacementTarget="{Binding ElementName=NotificationStack}"
                    Placement="Top"
                    StaysOpen="True"
@@ -424,7 +424,7 @@
 
                         <ItemsControl Grid.Row="2"
                                       Grid.ColumnSpan="2"
-                                      ItemsSource="{Binding NotificationGroupItems}">
+                                      ItemsSource="{Binding NotificationCenter.NotificationGroupItems}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Vertical"/>
@@ -461,10 +461,10 @@
                 <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                        <DataTrigger Binding="{Binding CommandState.IsBusy}" Value="True">
                             <Setter Property="Visibility" Value="Visible"/>
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding IsLoadingList}" Value="True">
+                        <DataTrigger Binding="{Binding Browser.IsLoadingList}" Value="True">
                             <Setter Property="Visibility" Value="Visible"/>
                         </DataTrigger>
                     </Style.Triggers>
@@ -485,10 +485,10 @@
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="처리 중..."/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                        <DataTrigger Binding="{Binding CommandState.IsBusy}" Value="True">
                                             <Setter Property="Text" Value="저장/삭제 처리 중..."/>
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsLoadingList}" Value="True">
+                                        <DataTrigger Binding="{Binding Browser.IsLoadingList}" Value="True">
                                             <Setter Property="Text" Value="목록 불러오는 중..."/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -505,3 +505,4 @@
         </Grid>
     </Grid>
 </Window>
+

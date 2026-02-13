@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using MyScheduler.Models;
 using MyScheduler.Services;
 using System.Collections.ObjectModel;
@@ -192,7 +192,7 @@ public partial class ScheduleBrowserViewModel : ObservableObject
             {
                 ShowUserError(
                     "목록 조회 실패",
-                    BuildDbHint("일정 목록을 불러오는 작업") + $"\n\n오류: {ex.Message}");
+                    UserMessageTemplates.BuildDbHint("일정 목록을 불러오는 작업") + $"\n\n오류: {ex.Message}");
             }
         }
         finally
@@ -283,7 +283,7 @@ public partial class ScheduleBrowserViewModel : ObservableObject
             {
                 ShowUserError(
                     "상세 조회 실패",
-                    BuildDbHint("일정 상세를 불러오는 작업") + $"\n\n오류: {ex.Message}");
+                    UserMessageTemplates.BuildDbHint("일정 상세를 불러오는 작업") + $"\n\n오류: {ex.Message}");
             }
         }
         finally
@@ -302,20 +302,6 @@ public partial class ScheduleBrowserViewModel : ObservableObject
     private void ShowUserError(string title, string message)
     {
         _dialogService.ShowError(title, message);
-    }
-
-    private static string BuildDbHint(string action)
-    {
-        return
-            $"{action} 중 문제가 발생했습니다.\n\n" +
-            "확인해볼 수 있는 항목:\n" +
-            "1) SQL Server가 실행 중인지\n" +
-            "2) appsettings.json 연결 문자열이 올바른지\n" +
-            "3) 권한 문제 여부\n\n" +
-            "조치 방법:\n" +
-            "- Windows 서비스에서 'SQL Server(SQLEXPRESS)' 실행 확인\n" +
-            "- SSMS로 localhost\\SQLEXPRESS 접속 테스트\n" +
-            "- appsettings.json의 ConnectionStrings:Default 확인";
     }
 
     private void UpdatePagingUi()

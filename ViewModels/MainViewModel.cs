@@ -1,8 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MyScheduler.Models;
 using MyScheduler.Services;
-using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Threading;
@@ -12,187 +10,135 @@ namespace MyScheduler.ViewModels;
 
 public partial class MainViewModel : ObservableObject, IDisposable
 {
-    private readonly ITimeService _timeService;
-    private readonly ScheduleBrowserViewModel _browserViewModel;
-    private readonly ScheduleCommandViewModel _commandViewModel;
     private readonly ScheduleExportViewModel _exportViewModel;
-    private readonly ClockViewModel _clockViewModel;
-    private readonly NotificationCenterViewModel _notificationCenterViewModel;
-
     private bool _isDisposed;
+
+    public ScheduleBrowserViewModel Browser { get; }
+    public ScheduleCommandViewModel CommandState { get; }
+    public ClockViewModel Clock { get; }
+    public NotificationCenterViewModel NotificationCenter { get; }
 
     public MainViewModel(
         ITimeService timeService,
+        IScheduleService scheduleService,
+        IScheduleCsvService scheduleCsvService,
+        IDialogService dialogService,
+        IFileExportService fileExportService,
+        IScheduleEditorDialogService scheduleEditorDialogService,
         ScheduleBrowserViewModel browserViewModel,
-        ScheduleCommandViewModel commandViewModel,
-        ScheduleExportViewModel exportViewModel,
         ClockViewModel clockViewModel,
         NotificationCenterViewModel notificationCenterViewModel)
     {
-        _timeService = timeService;
-        _browserViewModel = browserViewModel;
-        _commandViewModel = commandViewModel;
-        _exportViewModel = exportViewModel;
-        _clockViewModel = clockViewModel;
-        _notificationCenterViewModel = notificationCenterViewModel;
+        Browser = browserViewModel;
+        Clock = clockViewModel;
+        NotificationCenter = notificationCenterViewModel;
 
-        _clockViewModel.PropertyChanged += OnClockPropertyChanged;
-        _notificationCenterViewModel.PropertyChanged += OnNotificationCenterPropertyChanged;
-        _browserViewModel.PropertyChanged += OnBrowserPropertyChanged;
-        _commandViewModel.PropertyChanged += OnCommandPropertyChanged;
-        _browserViewModel.PagedSchedules.CollectionChanged += OnPagedSchedulesCollectionChanged;
+        CommandState = new ScheduleCommandViewModel(
+            scheduleService,
+            dialogService,
+            scheduleEditorDialogService,
+            Browser);
 
-        _browserViewModel.Initialize(_timeService.GetKoreaNow().Date);
+        _exportViewModel = new ScheduleExportViewModel(
+            scheduleCsvService,
+            fileExportService,
+            dialogService,
+            Browser);
 
-        _clockViewModel.Start();
-        _notificationCenterViewModel.Start();
-        _ = _browserViewModel.LoadSchedulesAsync();
+        Browser.PropertyChanged += OnBrowserPropertyChanged;
+        CommandState.PropertyChanged += OnCommandPropertyChanged;
+        Browser.PagedSchedules.CollectionChanged += OnPagedSchedulesCollectionChanged;
+
+        Browser.Initialize(timeService.GetKoreaNow().Date);
+
+        Clock.Start();
+        NotificationCenter.Start();
+        _ = Browser.LoadSchedulesAsync();
     }
-
-    public ObservableCollection<ScheduleListItem> PagedSchedules => _browserViewModel.PagedSchedules;
-
-    public ObservableCollection<NotificationItem> ActiveNotifications => _notificationCenterViewModel.ActiveNotifications;
-    public ObservableCollection<NotificationGroupItem> NotificationGroupItems => _notificationCenterViewModel.NotificationGroupItems;
-
-    public bool IsNotificationGroupOpen
-    {
-        get => _notificationCenterViewModel.IsNotificationGroupOpen;
-        set
-        {
-            if (_notificationCenterViewModel.IsNotificationGroupOpen == value) return;
-            _notificationCenterViewModel.IsNotificationGroupOpen = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public IEnumerable<NotificationItem> DisplayNotifications => _notificationCenterViewModel.DisplayNotifications;
-    public int OverflowCount => _notificationCenterViewModel.OverflowCount;
-    public bool HasOverflow => _notificationCenterViewModel.HasOverflow;
-
-    public ObservableCollection<string> SearchScopes => _browserViewModel.SearchScopes;
-
-    public string SelectedSearchScope
-    {
-        get => _browserViewModel.SelectedSearchScope;
-        set => _browserViewModel.SelectedSearchScope = value;
-    }
-
-    public string SearchText
-    {
-        get => _browserViewModel.SearchText;
-        set => _browserViewModel.SearchText = value;
-    }
-
-    public DateTime SelectedDate
-    {
-        get => _browserViewModel.SelectedDate;
-        set => _browserViewModel.SelectedDate = value;
-    }
-
-    public DateTime NowKst => _clockViewModel.NowKst;
-
-    public ScheduleListItem? SelectedSchedule
-    {
-        get => _browserViewModel.SelectedSchedule;
-        set => _browserViewModel.SelectedSchedule = value;
-    }
-
-    public ScheduleItem? SelectedScheduleDetail
-    {
-        get => _browserViewModel.SelectedScheduleDetail;
-        set => _browserViewModel.SelectedScheduleDetail = value;
-    }
-
-    public bool IsLoadingList => _browserViewModel.IsLoadingList;
-    public bool IsLoadingDetail => _browserViewModel.IsLoadingDetail;
-    public bool IsBusy => _commandViewModel.IsBusy;
-
-    public int CurrentPage => _browserViewModel.CurrentPage;
-    public int TotalPages => _browserViewModel.TotalPages;
-    public bool HasPrevPage => _browserViewModel.HasPrevPage;
-    public bool HasNextPage => _browserViewModel.HasNextPage;
-    public ObservableCollection<int> PageNumbers => _browserViewModel.PageNumbers;
 
     private bool CanEditOrDelete()
-        => !IsBusy && !IsLoadingList && !IsLoadingDetail && SelectedScheduleDetail is not null;
+        => !CommandState.IsBusy && !Browser.IsLoadingList && !Browser.IsLoadingDetail && Browser.SelectedScheduleDetail is not null;
 
     private bool CanExportCsv()
-        => !IsBusy && !IsLoadingList && PagedSchedules.Any();
+        => !CommandState.IsBusy && !Browser.IsLoadingList && Browser.PagedSchedules.Any();
 
     [RelayCommand]
     private void ApplySearch()
     {
-        _browserViewModel.ApplySearch();
+        Browser.ApplySearch();
         ExportCsvCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
     private void ClearSearch()
     {
-        _browserViewModel.ClearSearch();
+        Browser.ClearSearch();
         ExportCsvCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
     private Task LoadSchedulesAsync(bool showLoading = true)
-        => _browserViewModel.LoadSchedulesAsync(showLoading);
+        => Browser.LoadSchedulesAsync(showLoading);
 
     [RelayCommand]
     private Task AddScheduleAsync()
-        => _commandViewModel.AddScheduleAsync();
+        => CommandState.AddScheduleAsync();
 
     [RelayCommand(CanExecute = nameof(CanEditOrDelete))]
     private Task EditScheduleAsync()
-        => _commandViewModel.EditScheduleAsync();
+        => CommandState.EditScheduleAsync();
 
     [RelayCommand(CanExecute = nameof(CanEditOrDelete))]
     private Task DeleteScheduleAsync()
-        => _commandViewModel.DeleteScheduleAsync();
+        => CommandState.DeleteScheduleAsync();
 
     [RelayCommand(CanExecute = nameof(CanExportCsv))]
     private Task ExportCsvAsync(CancellationToken cancellationToken)
         => _exportViewModel.ExportCsvAsync(cancellationToken);
 
-    [RelayCommand(CanExecute = nameof(HasPrevPage))]
+    [RelayCommand(CanExecute = nameof(CanPrevPage))]
     private void PrevPage()
     {
-        _browserViewModel.MovePrevPage();
+        Browser.MovePrevPage();
     }
 
-    [RelayCommand(CanExecute = nameof(HasNextPage))]
+    [RelayCommand(CanExecute = nameof(CanNextPage))]
     private void NextPage()
     {
-        _browserViewModel.MoveNextPage();
+        Browser.MoveNextPage();
     }
 
     [RelayCommand]
     private void GoToPage(int page)
     {
-        _browserViewModel.GoToPage(page);
+        Browser.GoToPage(page);
     }
+
+    private bool CanPrevPage() => Browser.HasPrevPage;
+    private bool CanNextPage() => Browser.HasNextPage;
 
     [RelayCommand]
     private async Task OpenNotificationAsync(NotificationItem item)
     {
-        await _notificationCenterViewModel.OpenNotificationAsync(item, NavigateToScheduleAsync);
+        await NotificationCenter.OpenNotificationAsync(item, Browser.NavigateToScheduleAsync);
     }
 
     [RelayCommand]
     private void DismissNotification(NotificationItem item)
     {
-        _notificationCenterViewModel.DismissNotification(item);
+        NotificationCenter.DismissNotification(item);
     }
 
     [RelayCommand]
     private async Task OpenGroupedNotificationAsync(NotificationGroupItem item)
     {
-        await _notificationCenterViewModel.OpenGroupedNotificationAsync(item, NavigateToScheduleAsync);
+        await NotificationCenter.OpenGroupedNotificationAsync(item, Browser.NavigateToScheduleAsync);
     }
 
     [RelayCommand]
     private void CloseNotificationGroup()
     {
-        _notificationCenterViewModel.CloseNotificationGroup();
+        NotificationCenter.CloseNotificationGroup();
     }
 
     private void OnPagedSchedulesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -200,17 +146,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ExportCsvCommand.NotifyCanExecuteChanged();
     }
 
-    private void OnClockPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(ClockViewModel.NowKst))
-            OnPropertyChanged(nameof(NowKst));
-    }
-
     private void OnBrowserPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(e.PropertyName)) return;
-
-        OnPropertyChanged(e.PropertyName);
 
         if (e.PropertyName == nameof(ScheduleBrowserViewModel.IsLoadingList) ||
             e.PropertyName == nameof(ScheduleBrowserViewModel.IsLoadingDetail) ||
@@ -223,53 +161,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (e.PropertyName == nameof(ScheduleBrowserViewModel.IsLoadingList))
             ExportCsvCommand.NotifyCanExecuteChanged();
 
-        if (e.PropertyName == nameof(ScheduleBrowserViewModel.HasPrevPage) ||
-            e.PropertyName == nameof(ScheduleBrowserViewModel.HasNextPage))
-        {
+        if (e.PropertyName == nameof(ScheduleBrowserViewModel.HasPrevPage))
             PrevPageCommand.NotifyCanExecuteChanged();
+
+        if (e.PropertyName == nameof(ScheduleBrowserViewModel.HasNextPage))
             NextPageCommand.NotifyCanExecuteChanged();
-        }
     }
 
     private void OnCommandPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(ScheduleCommandViewModel.IsBusy)) return;
 
-        OnPropertyChanged(nameof(IsBusy));
         EditScheduleCommand.NotifyCanExecuteChanged();
         DeleteScheduleCommand.NotifyCanExecuteChanged();
         ExportCsvCommand.NotifyCanExecuteChanged();
     }
 
-    private void OnNotificationCenterPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(NotificationCenterViewModel.IsNotificationGroupOpen))
-            OnPropertyChanged(nameof(IsNotificationGroupOpen));
-
-        if (e.PropertyName == nameof(NotificationCenterViewModel.DisplayNotifications))
-            OnPropertyChanged(nameof(DisplayNotifications));
-
-        if (e.PropertyName == nameof(NotificationCenterViewModel.OverflowCount))
-            OnPropertyChanged(nameof(OverflowCount));
-
-        if (e.PropertyName == nameof(NotificationCenterViewModel.HasOverflow))
-            OnPropertyChanged(nameof(HasOverflow));
-    }
-
-    private Task NavigateToScheduleAsync(int scheduleId, DateTime date)
-        => _browserViewModel.NavigateToScheduleAsync(scheduleId, date);
-
     public void StopClock()
     {
-        _clockViewModel.PropertyChanged -= OnClockPropertyChanged;
-        _notificationCenterViewModel.PropertyChanged -= OnNotificationCenterPropertyChanged;
-        _browserViewModel.PropertyChanged -= OnBrowserPropertyChanged;
-        _commandViewModel.PropertyChanged -= OnCommandPropertyChanged;
-        _browserViewModel.PagedSchedules.CollectionChanged -= OnPagedSchedulesCollectionChanged;
+        Browser.PropertyChanged -= OnBrowserPropertyChanged;
+        CommandState.PropertyChanged -= OnCommandPropertyChanged;
+        Browser.PagedSchedules.CollectionChanged -= OnPagedSchedulesCollectionChanged;
 
-        _clockViewModel.Stop();
-        _notificationCenterViewModel.Stop();
-        _browserViewModel.Stop();
+        Clock.Stop();
+        NotificationCenter.Stop();
+        Browser.Stop();
     }
 
     public void Dispose()
@@ -281,4 +197,3 @@ public partial class MainViewModel : ObservableObject, IDisposable
         GC.SuppressFinalize(this);
     }
 }
-

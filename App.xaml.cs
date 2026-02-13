@@ -43,9 +43,7 @@ public partial class App : Application
                     services.AddTransient<ScheduleListStateViewModel>();
                     services.AddTransient<ClockViewModel>();
                     services.AddTransient<NotificationCenterViewModel>();
-                    services.AddSingleton<ScheduleBrowserViewModel>();
-                    services.AddTransient<ScheduleCommandViewModel>();
-                    services.AddTransient<ScheduleExportViewModel>();
+                    services.AddTransient<ScheduleBrowserViewModel>();
 
                     services.AddTransient<MainViewModel>();
                     services.AddTransient<MainWindow>();

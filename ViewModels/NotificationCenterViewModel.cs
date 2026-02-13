@@ -1,11 +1,11 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
 using MyScheduler.Models;
 using MyScheduler.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +17,7 @@ public partial class NotificationCenterViewModel : ObservableObject
 {
     private readonly IScheduleService _scheduleService;
     private readonly ITimeService _timeService;
+    private readonly ILogger<NotificationCenterViewModel> _logger;
     private readonly DispatcherTimer _notificationTimer = new();
 
     private bool _isNotificationScanning;
@@ -40,10 +41,14 @@ public partial class NotificationCenterViewModel : ObservableObject
     public int OverflowCount => Math.Max(0, ActiveNotifications.Count - 3);
     public bool HasOverflow => OverflowCount > 0;
 
-    public NotificationCenterViewModel(IScheduleService scheduleService, ITimeService timeService)
+    public NotificationCenterViewModel(
+        IScheduleService scheduleService,
+        ITimeService timeService,
+        ILogger<NotificationCenterViewModel> logger)
     {
         _scheduleService = scheduleService;
         _timeService = timeService;
+        _logger = logger;
     }
 
     public void Start()
@@ -142,13 +147,20 @@ public partial class NotificationCenterViewModel : ObservableObject
 
     private async void NotificationTimerTick(object? sender, EventArgs e)
     {
-        if (!_notificationTimerAligned)
+        try
         {
-            _notificationTimerAligned = true;
-            _notificationTimer.Interval = NotificationScanInterval;
-        }
+            if (!_notificationTimerAligned)
+            {
+                _notificationTimerAligned = true;
+                _notificationTimer.Interval = NotificationScanInterval;
+            }
 
-        await ScanNotificationsAsync();
+            await ScanNotificationsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "알림 타이머 처리 중 오류가 발생했습니다.");
+        }
     }
 
     private void ShowNotificationGroup(NotificationItem item)
@@ -206,9 +218,9 @@ public partial class NotificationCenterViewModel : ObservableObject
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            Debug.WriteLine("알림 스캔 중 오류 발생");
+            _logger.LogError(ex, "알림 스캔 중 오류가 발생했습니다.");
         }
         finally
         {
@@ -236,9 +248,9 @@ public partial class NotificationCenterViewModel : ObservableObject
             var groupItems = BuildGroupItems(upcoming);
             AddNotification(first, now, markNotified: true, additional, groupItems);
         }
-        catch
+        catch (Exception ex)
         {
-            Debug.WriteLine("시작 알림 조회 중 오류 발생");
+            _logger.LogError(ex, "시작 알림 조회 중 오류가 발생했습니다.");
         }
     }
 

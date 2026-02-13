@@ -1,5 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-using MyScheduler.Models;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using MyScheduler.Services;
 using System.Linq;
 
@@ -47,7 +46,7 @@ public partial class ScheduleCommandViewModel : ObservableObject
         {
             ShowUserError(
                 "일정 추가 실패",
-                BuildDbHint("일정을 추가하는 작업") + $"\n\n오류: {ex.Message}");
+                UserMessageTemplates.BuildDbHint("일정을 추가하는 작업") + $"\n\n오류: {ex.Message}");
         }
         finally
         {
@@ -81,7 +80,7 @@ public partial class ScheduleCommandViewModel : ObservableObject
         {
             ShowUserError(
                 "일정 수정 실패",
-                BuildDbHint("일정을 수정하는 작업") + $"\n\n오류: {ex.Message}");
+                UserMessageTemplates.BuildDbHint("일정을 수정하는 작업") + $"\n\n오류: {ex.Message}");
         }
         finally
         {
@@ -121,7 +120,7 @@ public partial class ScheduleCommandViewModel : ObservableObject
         {
             ShowUserError(
                 "일정 삭제 실패",
-                BuildDbHint("일정을 삭제하는 작업") + $"\n\n오류: {ex.Message}");
+                UserMessageTemplates.BuildDbHint("일정을 삭제하는 작업") + $"\n\n오류: {ex.Message}");
         }
         finally
         {
@@ -157,19 +156,5 @@ public partial class ScheduleCommandViewModel : ObservableObject
     private void ShowUserError(string title, string message)
     {
         _dialogService.ShowError(title, message);
-    }
-
-    private static string BuildDbHint(string action)
-    {
-        return
-            $"{action} 중 문제가 발생했습니다.\n\n" +
-            "확인해볼 수 있는 항목:\n" +
-            "1) SQL Server가 실행 중인지\n" +
-            "2) appsettings.json 연결 문자열이 올바른지\n" +
-            "3) 권한 문제 여부\n\n" +
-            "조치 방법:\n" +
-            "- Windows 서비스에서 'SQL Server(SQLEXPRESS)' 실행 확인\n" +
-            "- SSMS로 localhost\\SQLEXPRESS 접속 테스트\n" +
-            "- appsettings.json의 ConnectionStrings:Default 확인";
     }
 }

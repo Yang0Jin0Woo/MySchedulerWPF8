@@ -1,4 +1,4 @@
-using MyScheduler.Services;
+﻿using MyScheduler.Services;
 using System.Linq;
 using System.Threading;
 
@@ -59,10 +59,10 @@ public class ScheduleExportViewModel
             _dialogService.ShowError(
                 "CSV 내보내기 실패",
                 "CSV 파일 저장 중 문제가 발생했습니다.\n\n" +
-                "확인해볼 수 있는 항목:\n" +
+                "확인해야 할 항목:\n" +
                 "1) 저장 경로 권한(쓰기 가능 여부)\n" +
-                "2) 파일이 다른 프로그램에서 열려있는지\n" +
-                "3) 디스크 용량\n\n" +
+                "2) 파일이 다른 프로그램에서 열려 있는지\n" +
+                "3) 디스크 여유 공간\n\n" +
                 $"오류: {ex.Message}");
         }
     }

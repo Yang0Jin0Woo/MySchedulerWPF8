@@ -45,14 +45,17 @@ User
  ↓
 View (XAML: DataBinding / Command Trigger)
  ↓
-MainViewModel (화면 조합/오케스트레이션)
+MainViewModel (조합/커맨드 오케스트레이션, pass-through 축소)
  ↓
 Sub ViewModels
-- ScheduleListStateViewModel (검색/페이징 상태)
+- ScheduleBrowserViewModel (목록/상세/검색/페이징/요청취소)
+- ScheduleCommandViewModel (추가/수정/삭제, 동시성 충돌 처리)
+- ScheduleExportViewModel (CSV 내보내기)
+- ScheduleListStateViewModel (검색/페이징 상태 보관)
 - ClockViewModel (현재 시각 갱신)
-- NotificationCenterViewModel (알림 스캔/그룹/표시)
+- NotificationCenterViewModel (알림 스캔/그룹/표시, 예외 로깅)
  ↓
-Service (업무 규칙, UTC↔KST 변환, 동시성 충돌 감지/예외, 다이얼로그 추상화)
+Service (업무 규칙, UTC↔KST 변환, 동시성 감지/예외, 메시지 템플릿)
  ↓
 DbContextFactory (IDbContextFactory<AppDbContext>)
  ↓
@@ -75,18 +78,19 @@ SQL Server (MySchedulerDb)
 
 ## ViewModel / Service 책임 요약
 
-- MainViewModel.cs: 하위 ViewModel을 묶어 화면 바인딩 계약을 유지하고 전체 UI 흐름을 조율합니다.
-- ScheduleBrowserViewModel.cs: 목록/상세 조회, 검색/필터, 페이징, 요청 취소/버전 관리 등 조회 흐름을 전담합니다.
-- ScheduleCommandViewModel.cs: 일정 추가/수정/삭제와 동시성 충돌 처리, 사용자 안내를 담당합니다.
-- ScheduleExportViewModel.cs: CSV 내보내기(경로 선택, 생성 호출, 저장/오류 처리)를 담당합니다.
-- NotificationCenterViewModel.cs: 주기 스캔 기반 알림 생성, 중복 억제, 그룹 알림 상태 관리를 담당합니다.
-- ClockViewModel.cs: 현재 시각(KST) 갱신 타이머와 표시 상태를 관리합니다.
+- MainViewModel.cs: Browser/CommandState/Clock/NotificationCenter를 조합하고 Command CanExecute 갱신을 오케스트레이션
+- ScheduleBrowserViewModel.cs: 목록/상세 조회, 검색/필터, 페이징, 요청 취소/버전 관리 등 읽기 흐름 담당
+- ScheduleCommandViewModel.cs: 일정 추가/수정/삭제와 동시성 충돌 처리 등 쓰기 흐름 담당
+- ScheduleExportViewModel.cs: CSV 내보내기(경로 선택, 생성 호출, 저장/오류 처리)
+- NotificationCenterViewModel.cs: 주기 스캔 기반 알림 생성, 중복 억제, 그룹 알림 상태 관리와 스캔 예외 로깅 담당
+- ClockViewModel.cs: 현재 시각(KST) 갱신 타이머와 표시 상태를 관리
 
-- ScheduleService.cs: 일정 도메인 데이터 접근(EF Core), 검색/페이징 쿼리, 낙관적 동시성 처리를 구현합니다.
-- TimeService.cs: UTC↔KST 변환과 현재 한국 시각 제공을 담당합니다.
-- ScheduleCsvService.cs: 일정 목록을 CSV(UTF-8 BOM, escape 처리) 바이트로 변환합니다.
-- DialogService.cs: 확인/알림/오류 메시지와 파일 저장 대화상자 표시를 담당합니다.
-- ScheduleEditorDialogService.cs: 일정 편집 창을 열고 결과 모델을 반환하는 UI 브리지 역할을 수행합니다.
+- ScheduleService.cs: 일정 도메인 데이터 접근(EF Core), 정규화 컬럼 기반 검색/페이징 쿼리, 낙관적 동시성 처리 구현
+- TimeService.cs: UTC↔KST 변환과 현재 한국 시각 제공
+- ScheduleCsvService.cs: 일정 목록을 CSV(UTF-8 BOM, escape 처리) 바이트로 변환
+- DialogService.cs: 확인/알림/오류 메시지와 파일 저장 대화상자 표시
+- ScheduleEditorDialogService.cs: 일정 편집 창을 열고 결과 모델을 반환하는 UI 브리지 역할
+- UserMessageTemplates.cs: DB 작업 실패 공통 안내 문구를 중앙 관리하여 중복 메시지 제거
 
 ---
 
@@ -137,7 +141,7 @@ SQL Server (MySchedulerDb)
 
  → 빠른 날짜 전환이나 선택 변경에도 화면 상태가 항상 사용자 입력과 일치
 
-- 핵심 파일: `ViewModels/ScheduleBrowserViewModel.cs`, `ViewModels/MainViewModel.cs`
+- 핵심 파일: `ViewModels/ScheduleBrowserViewModel.cs`
 
 ### 비동기 요청 취소
 
@@ -205,7 +209,8 @@ SQL Server (MySchedulerDb)
 
 **해결**
 
-- 검색/필터를 Service 계층의 DB 쿼리에서 처리하도록 구성
+- 검색/필터를 Service 계층 DB 쿼리에서 처리하고, 정규화 키워드(prefix) 검색으로 통일
+- `TitleNormalized`/`LocationNormalized` computed 컬럼에 인덱스를 적용해 컬럼 함수 호출 없이 조회
 - 날짜 범위, 검색 범위(전체/제목/장소), 페이지 정보를 함께 전달해 필요한 데이터만 조회
 
  → 대량 데이터에서도 조회 범위를 줄여 성능을 안정적으로 유지하고, 페이징과 검색 결과 일관성을 확보
@@ -226,3 +231,6 @@ SQL Server (MySchedulerDb)
   - 대소문자/공백 입력 차이에 강한 검색 일관성 확보
   - 인덱스 기반 탐색이 가능한 쿼리 형태로 변경되어 대량 데이터에서 응답 안정성 개선
   - 페이징/정렬 시 체감 성능 개선
+  - `LocationNormalized`를 nullable로 유지해 `장소 없음(NULL)` 의미를 보존
+
+- 핵심 파일: `Data/AppDbContext.cs`, `Services/ScheduleService.cs`
