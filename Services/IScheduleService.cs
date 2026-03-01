@@ -13,6 +13,13 @@ public interface IScheduleService
         int pageSize,
         CancellationToken cancellationToken);
     Task<ScheduleItem?> GetByIdAsync(int id, CancellationToken cancellationToken);
+    Task<int?> GetPageNumberForScheduleAsync(
+        int scheduleId,
+        DateTime date,
+        string? searchText,
+        string? searchScope,
+        int pageSize,
+        CancellationToken cancellationToken);
 
     Task<List<ScheduleListItem>> GetStartingInRangeAsync(
         DateTime startKst,

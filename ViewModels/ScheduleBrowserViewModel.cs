@@ -15,9 +15,13 @@ public partial class ScheduleBrowserViewModel : ObservableObject
 
     private int _listRequestVersion;
     private int _detailRequestVersion;
+    private int _navigateRequestVersion;
     private CancellationTokenSource? _listCts;
     private CancellationTokenSource? _detailCts;
+    private CancellationTokenSource? _navigateCts;
     private bool _suppressDateReload;
+    private bool _suppressSelectionDetailReload;
+    private bool _preserveDetailOnEmptyList;
     private Task _scheduledLoadTask = Task.CompletedTask;
     private Task _scheduledDetailTask = Task.CompletedTask;
 
@@ -70,6 +74,9 @@ public partial class ScheduleBrowserViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isLoadingDetail;
+
+    [ObservableProperty]
+    private bool isNavigating;
 
     public ScheduleBrowserViewModel(
         IScheduleService scheduleService,
@@ -174,7 +181,8 @@ public partial class ScheduleBrowserViewModel : ObservableObject
             if (PagedSchedules.Count == 0)
             {
                 SelectedSchedule = null;
-                SelectedScheduleDetail = null;
+                if (!_preserveDetailOnEmptyList)
+                    SelectedScheduleDetail = null;
             }
 
             if (prevId is not null)
@@ -212,18 +220,96 @@ public partial class ScheduleBrowserViewModel : ObservableObject
         }
     }
 
-    public async Task NavigateToScheduleAsync(int scheduleId, DateTime date)
+    public async Task NavigateToScheduleAsync(int scheduleId)
     {
-        _suppressDateReload = true;
-        SelectedDate = date.Date;
-        _suppressDateReload = false;
-        OnPropertyChanged(nameof(SelectedDate));
+        var version = ++_navigateRequestVersion;
+        _navigateCts?.Cancel();
+        _navigateCts?.Dispose();
+        var navigateCts = new CancellationTokenSource();
+        _navigateCts = navigateCts;
+        var token = navigateCts.Token;
+        IsNavigating = true;
 
-        await LoadSchedulesAsync(false);
+        try
+        {
+            var detail = await _scheduleService.GetByIdAsync(scheduleId, token);
+            if (version != _navigateRequestVersion) return;
 
-        var match = PagedSchedules.FirstOrDefault(x => x.Id == scheduleId);
-        if (match is not null)
-            SelectedSchedule = match;
+            if (detail is null)
+            {
+                SetSelectedScheduleWithoutDetailReload(null);
+                SelectedScheduleDetail = null;
+                ShowUserError("일정 열기 실패", "요청한 일정을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.");
+                return;
+            }
+
+            SelectedScheduleDetail = detail;
+            _suppressDateReload = true;
+            SelectedDate = detail.StartAt.Date;
+            _suppressDateReload = false;
+            OnPropertyChanged(nameof(SelectedDate));
+
+            var (appliedText, appliedScope) = _listState.GetAppliedSearch();
+            var targetPage = await _scheduleService.GetPageNumberForScheduleAsync(
+                scheduleId,
+                SelectedDate,
+                appliedText,
+                appliedScope,
+                PageSize,
+                token);
+            if (version != _navigateRequestVersion) return;
+
+            if (targetPage is null)
+            {
+                _dialogService.ShowInfo(
+                    "일정 상세는 열렸지만 현재 목록 조건(날짜/검색)에서는 보이지 않습니다.",
+                    "목록 동기화 안내");
+                return;
+            }
+
+            var moved = _listState.MoveToPageUnchecked(targetPage.Value);
+            if (moved)
+                UpdatePagingUi();
+
+            _preserveDetailOnEmptyList = true;
+            try
+            {
+                await LoadSchedulesAsync(false);
+            }
+            finally
+            {
+                _preserveDetailOnEmptyList = false;
+            }
+
+            if (version != _navigateRequestVersion) return;
+
+            var match = PagedSchedules.FirstOrDefault(x => x.Id == scheduleId);
+            SetSelectedScheduleWithoutDetailReload(match);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            if (version == _navigateRequestVersion)
+            {
+                ShowUserError(
+                    "일정 열기 실패",
+                    UserMessageTemplates.BuildDbHint("알림에서 일정을 여는 작업") + $"\n\n오류: {ex.Message}");
+            }
+        }
+        finally
+        {
+            if (version == _navigateRequestVersion)
+                IsNavigating = false;
+
+            if (ReferenceEquals(_navigateCts, navigateCts))
+            {
+                _navigateCts?.Dispose();
+                _navigateCts = null;
+            }
+        }
     }
 
     public void Stop()
@@ -235,6 +321,10 @@ public partial class ScheduleBrowserViewModel : ObservableObject
         _detailCts?.Cancel();
         _detailCts?.Dispose();
         _detailCts = null;
+
+        _navigateCts?.Cancel();
+        _navigateCts?.Dispose();
+        _navigateCts = null;
     }
 
     partial void OnSelectedDateChanged(DateTime value)
@@ -249,6 +339,9 @@ public partial class ScheduleBrowserViewModel : ObservableObject
 
     partial void OnSelectedScheduleChanged(ScheduleListItem? value)
     {
+        if (_suppressSelectionDetailReload)
+            return;
+
         SelectedScheduleDetail = null;
         ScheduleDetailLoad();
     }
@@ -324,5 +417,12 @@ public partial class ScheduleBrowserViewModel : ObservableObject
     private void ScheduleDetailLoad()
     {
         _scheduledDetailTask = LoadSelectedDetailAsync();
+    }
+
+    private void SetSelectedScheduleWithoutDetailReload(ScheduleListItem? value)
+    {
+        _suppressSelectionDetailReload = true;
+        SelectedSchedule = value;
+        _suppressSelectionDetailReload = false;
     }
 }

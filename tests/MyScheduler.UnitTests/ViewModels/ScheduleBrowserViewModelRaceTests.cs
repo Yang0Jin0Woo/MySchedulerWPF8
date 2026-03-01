@@ -145,6 +145,15 @@ public class ScheduleBrowserViewModelRaceTests
         public Task<ScheduleItem?> GetByIdAsync(int id, CancellationToken cancellationToken)
             => Task.FromResult<ScheduleItem?>(null);
 
+        public Task<int?> GetPageNumberForScheduleAsync(
+            int scheduleId,
+            DateTime date,
+            string? searchText,
+            string? searchScope,
+            int pageSize,
+            CancellationToken cancellationToken)
+            => Task.FromResult<int?>(null);
+
         public Task<List<ScheduleListItem>> GetStartingInRangeAsync(DateTime startKst, DateTime endKst, CancellationToken cancellationToken)
             => Task.FromResult(new List<ScheduleListItem>());
 

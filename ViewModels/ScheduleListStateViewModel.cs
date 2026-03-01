@@ -85,6 +85,15 @@ public partial class ScheduleListStateViewModel : ObservableObject
         return true;
     }
 
+    public bool MoveToPageUnchecked(int page)
+    {
+        var safePage = Math.Max(1, page);
+        if (CurrentPage == safePage) return false;
+        CurrentPage = safePage;
+        UpdatePageNumbers();
+        return true;
+    }
+
     public void SetTotalCount(int totalCount, int pageSize)
     {
         TotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));

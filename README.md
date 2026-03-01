@@ -159,6 +159,29 @@ SQL Server (MySchedulerDb)
 
 - 핵심 파일: `ViewModels/ScheduleBrowserViewModel.cs`, `ViewModels/NotificationCenterViewModel.cs`
 
+### 알림에서 특정 일정 열기 신뢰성 개선
+
+- 문제
+  - 알림 클릭 시 일정 이동 메서드(`NavigateToScheduleAsync`)가 현재 페이지에서만 일정 번호를 찾는 방식이라, 다른 페이지의 일정은 선택이 실패할 수 있었음
+  - 상세 불러오기와 알림 이동 불러오기가 동일한 상태값(`IsLoadingDetail`)을 함께 사용해, 동시에 동작하면 로딩 표시가 불안정해질 수 있었음
+  - 날짜 인자(`date`)를 받는 메서드 형태가 남아 있어 실제 동작(상세 기준 날짜 확정)과 인터페이스 의도가 어긋났음
+
+- 해결
+  - 이동 흐름을 `상세(일정 번호) 우선 불러오기 -> 상세 기준 날짜 확정 -> 대상 페이지 계산 -> 목록 동기화` 순서로 재설계
+  - 서비스 계층에 페이지 계산 메서드(`GetPageNumberForScheduleAsync`)를 추가해, 현재 검색 조건/정렬 기준에서 해당 일정이 포함된 페이지를 계산
+  - 대상 페이지를 찾지 못한 경우(`targetPage == null`)에도 상세 화면은 유지하고, “현재 목록 조건에서 숨김” 안내만 표시
+  - 이동 중 상태값(`IsNavigating`)을 별도로 도입해, 이동 로딩과 상세 로딩 상태를 분리
+  - 일정 이동 메서드를 `NavigateToScheduleAsync(int scheduleId)`로 단순화하고, 알림 호출부 함수 형식도 `Func<int, Task>`로 정리
+
+- 결과
+  - 다른 페이지에 있는 일정도 알림 클릭 시 안정적으로 상세가 열리고, 목록이 해당 페이지로 일관되게 동기화됨
+  - 목록 조건으로 숨겨진 경우에도 상세 컨텍스트를 유지해 사용자 흐름이 끊기지 않음
+  - 로딩 상태 충돌 가능성을 줄여 UI 일관성이 개선됨
+  - 관련 단위/통합 테스트를 모두 통과해 회귀 위험을 낮춤
+
+- 핵심 파일: `ViewModels/ScheduleBrowserViewModel.cs`, `ViewModels/NotificationCenterViewModel.cs`, `ViewModels/MainViewModel.cs`, `Services/IScheduleService.cs`, `Services/ScheduleService.cs`
+- 관련 테스트: `tests/MyScheduler.UnitTests/ViewModels/ScheduleBrowserViewModelNavigationTests.cs`, `tests/MyScheduler.IntegrationTests/Services/ScheduleServiceQueryTests.cs`
+
 ### Write 작업 안정화(재진입 방지)
 
 - 일정 추가/수정/삭제 작업이 연속 또는 동시에 실행될 경우는 중복 처리, 상태 꼬임, 의도하지 않은 요청 발생 가능

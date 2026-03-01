@@ -90,7 +90,7 @@ public partial class NotificationCenterViewModel : ObservableObject
         _notificationCts = new CancellationTokenSource();
     }
 
-    public async Task OpenNotificationAsync(NotificationItem item, Func<int, DateTime, Task> navigateAsync)
+    public async Task OpenNotificationAsync(NotificationItem item, Func<int, Task> navigateAsync)
     {
         if (item is null) return;
 
@@ -100,7 +100,7 @@ public partial class NotificationCenterViewModel : ObservableObject
             return;
         }
 
-        await navigateAsync(item.ScheduleId, item.StartAt.Date);
+        await navigateAsync(item.ScheduleId);
         DismissNotification(item);
     }
 
@@ -115,7 +115,7 @@ public partial class NotificationCenterViewModel : ObservableObject
             CloseNotificationGroup();
     }
 
-    public async Task OpenGroupedNotificationAsync(NotificationGroupItem item, Func<int, DateTime, Task> navigateAsync)
+    public async Task OpenGroupedNotificationAsync(NotificationGroupItem item, Func<int, Task> navigateAsync)
     {
         if (item is null) return;
 
@@ -125,7 +125,7 @@ public partial class NotificationCenterViewModel : ObservableObject
         if (groupSource is not null)
             DismissNotification(groupSource);
 
-        await navigateAsync(item.ScheduleId, item.StartAt.Date);
+        await navigateAsync(item.ScheduleId);
     }
 
     public void CloseNotificationGroup()

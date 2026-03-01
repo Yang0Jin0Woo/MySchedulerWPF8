@@ -57,7 +57,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     private bool CanEditOrDelete()
-        => !CommandState.IsBusy && !Browser.IsLoadingList && !Browser.IsLoadingDetail && Browser.SelectedScheduleDetail is not null;
+        => !CommandState.IsBusy &&
+           !Browser.IsLoadingList &&
+           !Browser.IsLoadingDetail &&
+           !Browser.IsNavigating &&
+           Browser.SelectedScheduleDetail is not null;
 
     private bool CanExportCsv()
         => !CommandState.IsBusy && !Browser.IsLoadingList && Browser.PagedSchedules.Any();
@@ -152,6 +156,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (e.PropertyName == nameof(ScheduleBrowserViewModel.IsLoadingList) ||
             e.PropertyName == nameof(ScheduleBrowserViewModel.IsLoadingDetail) ||
+            e.PropertyName == nameof(ScheduleBrowserViewModel.IsNavigating) ||
             e.PropertyName == nameof(ScheduleBrowserViewModel.SelectedScheduleDetail))
         {
             EditScheduleCommand.NotifyCanExecuteChanged();

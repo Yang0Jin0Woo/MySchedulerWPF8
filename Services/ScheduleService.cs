@@ -35,17 +35,10 @@ public class ScheduleService : IScheduleService
 
         await using var db = _dbFactory.CreateDbContext();
 
-        IQueryable<ScheduleItem> query = db.Schedules
-            .AsNoTracking()
-            .Where(x => x.StartAt < endUtc && x.EndAt > startUtc);
+        var query = BuildBaseDateQuery(db, startUtc, endUtc);
+        query = ApplySearchFilter(query, searchText, searchScope);
 
-        var keywordNormalized = NormalizeKeyword(searchText);
-        if (string.IsNullOrWhiteSpace(keywordNormalized))
-        {
-            return await LoadByLikeAsync(query, null, safePageSize, skip, cancellationToken);
-        }
-
-        return await LoadByLikeAsync(query, (keywordNormalized, searchScope), safePageSize, skip, cancellationToken);
+        return await LoadByLikeAsync(query, safePageSize, skip, cancellationToken);
     }
 
     public async Task<ScheduleItem?> GetByIdAsync(int id, CancellationToken cancellationToken)
@@ -62,6 +55,41 @@ public class ScheduleService : IScheduleService
         item.EndAt = _timeService.UtcToKorea(item.EndAt);
 
         return item;
+    }
+
+    public async Task<int?> GetPageNumberForScheduleAsync(
+        int scheduleId,
+        DateTime date,
+        string? searchText,
+        string? searchScope,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var start = date.Date;
+        var end = start.AddDays(1);
+        var startUtc = _timeService.KoreaToUtc(start);
+        var endUtc = _timeService.KoreaToUtc(end);
+        var safePageSize = Math.Max(1, pageSize);
+
+        await using var db = _dbFactory.CreateDbContext();
+
+        var query = BuildBaseDateQuery(db, startUtc, endUtc);
+        query = ApplySearchFilter(query, searchText, searchScope);
+
+        var target = await query
+            .Where(x => x.Id == scheduleId)
+            .Select(x => new { x.StartAt, x.Id })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (target is null)
+            return null;
+
+        var precedingCount = await query
+            .Where(x => x.StartAt < target.StartAt ||
+                        (x.StartAt == target.StartAt && x.Id < target.Id))
+            .CountAsync(cancellationToken);
+
+        return (precedingCount / safePageSize) + 1;
     }
 
     public async Task<List<ScheduleListItem>> GetStartingInRangeAsync(
@@ -232,26 +260,10 @@ public class ScheduleService : IScheduleService
 
     private async Task<(List<ScheduleListItem> Items, int TotalCount)> LoadByLikeAsync(
         IQueryable<ScheduleItem> query,
-        (string KeywordNormalized, string? SearchScope)? filter,
         int pageSize,
         int skip,
         CancellationToken cancellationToken)
     {
-        if (filter is not null)
-        {
-            var likePattern = $"{filter.Value.KeywordNormalized}%";
-            var searchScope = filter.Value.SearchScope;
-            query = searchScope switch
-            {
-                "제목" => query.Where(x => EF.Functions.Like(x.TitleNormalized, likePattern)),
-                "장소" => query.Where(x => x.LocationNormalized != null &&
-                                          EF.Functions.Like(x.LocationNormalized, likePattern)),
-                _ => query.Where(x => EF.Functions.Like(x.TitleNormalized, likePattern) ||
-                                      (x.LocationNormalized != null &&
-                                       EF.Functions.Like(x.LocationNormalized, likePattern))),
-            };
-        }
-
         var totalCount = await query.CountAsync(cancellationToken);
         var rows = await query
             .OrderBy(x => x.StartAt)
@@ -280,6 +292,34 @@ public class ScheduleService : IScheduleService
             .ToList();
 
         return (items, totalCount);
+    }
+
+    private static IQueryable<ScheduleItem> BuildBaseDateQuery(AppDbContext db, DateTime startUtc, DateTime endUtc)
+    {
+        return db.Schedules
+            .AsNoTracking()
+            .Where(x => x.StartAt < endUtc && x.EndAt > startUtc);
+    }
+
+    private static IQueryable<ScheduleItem> ApplySearchFilter(
+        IQueryable<ScheduleItem> query,
+        string? searchText,
+        string? searchScope)
+    {
+        var keywordNormalized = NormalizeKeyword(searchText);
+        if (string.IsNullOrWhiteSpace(keywordNormalized))
+            return query;
+
+        var likePattern = $"{keywordNormalized}%";
+        return searchScope switch
+        {
+            "제목" => query.Where(x => EF.Functions.Like(x.TitleNormalized, likePattern)),
+            "장소" => query.Where(x => x.LocationNormalized != null &&
+                                      EF.Functions.Like(x.LocationNormalized, likePattern)),
+            _ => query.Where(x => EF.Functions.Like(x.TitleNormalized, likePattern) ||
+                                  (x.LocationNormalized != null &&
+                                   EF.Functions.Like(x.LocationNormalized, likePattern))),
+        };
     }
 
     private static (DateTime StartAt, DateTime EndAt) NormalizeAndValidateRange(ScheduleItem item)

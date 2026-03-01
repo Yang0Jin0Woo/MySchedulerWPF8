@@ -53,6 +53,61 @@ public class ScheduleServiceQueryTests
         Assert.Equal("셋 일정", page2.Items[0].Title);
     }
 
+    [Fact]
+    public async Task GetPageNumberForScheduleAsync_ReturnsPageBasedOnListOrdering()
+    {
+        var timeService = new KoreaTimeService();
+        var factory = new InMemoryDbContextFactory(Guid.NewGuid().ToString("N"));
+
+        await using (var db = factory.CreateDbContext())
+        {
+            db.Schedules.AddRange(
+                CreateSchedule(1, "첫 일정", new DateTime(2026, 2, 13, 8, 0, 0), new DateTime(2026, 2, 13, 9, 0, 0), timeService),
+                CreateSchedule(2, "둘 일정", new DateTime(2026, 2, 13, 9, 0, 0), new DateTime(2026, 2, 13, 10, 0, 0), timeService),
+                CreateSchedule(3, "셋 일정", new DateTime(2026, 2, 13, 10, 0, 0), new DateTime(2026, 2, 13, 11, 0, 0), timeService));
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ScheduleService(factory, timeService);
+
+        var page = await sut.GetPageNumberForScheduleAsync(
+            scheduleId: 3,
+            date: new DateTime(2026, 2, 13),
+            searchText: null,
+            searchScope: null,
+            pageSize: 2,
+            CancellationToken.None);
+
+        Assert.Equal(2, page);
+    }
+
+    [Fact]
+    public async Task GetPageNumberForScheduleAsync_ReturnsNullWhenFilteredOut()
+    {
+        var timeService = new KoreaTimeService();
+        var factory = new InMemoryDbContextFactory(Guid.NewGuid().ToString("N"));
+
+        await using (var db = factory.CreateDbContext())
+        {
+            db.Schedules.AddRange(
+                CreateSchedule(1, "회의", new DateTime(2026, 2, 13, 8, 0, 0), new DateTime(2026, 2, 13, 9, 0, 0), timeService),
+                CreateSchedule(2, "점심", new DateTime(2026, 2, 13, 12, 0, 0), new DateTime(2026, 2, 13, 13, 0, 0), timeService));
+            await db.SaveChangesAsync();
+        }
+
+        var sut = new ScheduleService(factory, timeService);
+
+        var page = await sut.GetPageNumberForScheduleAsync(
+            scheduleId: 2,
+            date: new DateTime(2026, 2, 13),
+            searchText: "회의",
+            searchScope: "제목",
+            pageSize: 10,
+            CancellationToken.None);
+
+        Assert.Null(page);
+    }
+
     private static async Task SeedHalfOpenRangeDataAsync(InMemoryDbContextFactory factory, ITimeService timeService)
     {
         await using var db = factory.CreateDbContext();
