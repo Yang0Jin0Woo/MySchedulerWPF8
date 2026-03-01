@@ -383,7 +383,7 @@
                 </Border>
             </StackPanel>
 
-            <Popup IsOpen="{Binding NotificationCenter.IsNotificationGroupOpen}"
+            <Popup IsOpen="{Binding NotificationCenter.IsNotificationGroupOpen, Mode=OneWay}"
                    PlacementTarget="{Binding ElementName=NotificationStack}"
                    Placement="Top"
                    StaysOpen="True"

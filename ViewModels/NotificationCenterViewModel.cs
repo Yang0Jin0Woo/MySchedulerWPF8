@@ -34,8 +34,12 @@ public partial class NotificationCenterViewModel : ObservableObject
     public ObservableCollection<NotificationItem> ActiveNotifications { get; } = new();
     public ObservableCollection<NotificationGroupItem> NotificationGroupItems { get; } = new();
 
-    [ObservableProperty]
-    private bool isNotificationGroupOpen;
+    private bool _isNotificationGroupOpen;
+    public bool IsNotificationGroupOpen
+    {
+        get => _isNotificationGroupOpen;
+        private set => SetProperty(ref _isNotificationGroupOpen, value);
+    }
 
     public IEnumerable<NotificationItem> DisplayNotifications => ActiveNotifications.Take(3);
     public int OverflowCount => Math.Max(0, ActiveNotifications.Count - 3);
