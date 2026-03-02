@@ -270,6 +270,15 @@ SQL Server (MySchedulerDb)
   - 인덱스 기반 탐색이 가능한 쿼리 형태로 변경되어 대량 데이터에서 응답 안정성 개선
   - 페이징/정렬 시 체감 성능 개선
   - `LocationNormalized`를 nullable로 유지해 `장소 없음(NULL)` 의미를 보존
+  - 성능 테스트 결과(`ScheduleSearchPerformanceTests`)
+  
+    | 전략 | Min~P95 ms(평균 ms) |
+    |:---:|:---:|
+    | ToUpper.Contains | 16.257~43.630ms (평균 25.602ms) |
+    | WHERE [TitleNormalized] LIKE '%keyword%' | 31.476~33.742ms (평균 32.582ms) |
+    | WHERE [TitleNormalized] LIKE 'keyword%' | 11.768~13.773ms (평균 12.745ms) |
+  
+  - 테스트 조건: 5만 건 데이터 중 1만 건 매칭 환경에서 키워드 `MEET`로 100회 반복 측정
 
 - 핵심 파일: `Data/AppDbContext.cs`, `Services/ScheduleService.cs`
 
